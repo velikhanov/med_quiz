@@ -26,9 +26,9 @@ SECRET_KEY = 'django-insecure-!b3^iai4n43!187$o#!y6dx5uaaf80g%)c9!c(ou8&qe^14*-p
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.devtunnels.ms']
+ALLOWED_HOSTS = ['velikhanov.pythonanywhere.com']
 
-SITE_URL = 'https://vt1l9wzm-8000.euw.devtunnels.ms'
+SITE_URL = 'velikhanov.pythonanywhere.com'
 
 # Application definition
 
