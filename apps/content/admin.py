@@ -46,7 +46,7 @@ class PDFUploadAdmin(admin.ModelAdmin):
 
     @admin.display(description="Status")
     def file_completion_status(self, obj):
-        if obj and obj.is_locked():
+        if obj and obj.last_processed_page == obj.total_pages:
             return "✅"
 
         if obj.total_pages > 0:

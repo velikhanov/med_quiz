@@ -5,6 +5,8 @@ from django.conf import settings
 # Import models from BOTH apps
 from apps.content.models import Test, Category, Question
 from apps.bot.models import TelegramUser, UserCategoryProgress, UserAnswer
+from telebot.apihelper import ApiTelegramException
+
 
 # Initialize Bot
 bot = telebot.TeleBot(settings.TELEGRAM_BOT_TOKEN, threaded=False)
@@ -73,13 +75,17 @@ def show_topics(call):
 
     markup.add(InlineKeyboardButton("🔙 Back", callback_data="start_menu"))
 
-    bot.edit_message_text(
-        f"📂 **Subject:** {subject.name}\nChoose a topic:",
-        call.message.chat.id,
-        call.message.message_id,
-        reply_markup=markup,
-        parse_mode="Markdown"
-    )
+    try:
+        bot.edit_message_text(
+            f"📂 **Subject:** {subject.name}\nChoose a topic:",
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=markup,
+            parse_mode="Markdown"
+        )
+    except ApiTelegramException as exc:
+        if "message is not modified" not in str(exc):
+            raise
 
 
 # --- 3. QUIZ ENGINE: Find Next Question ---
@@ -101,8 +107,10 @@ def start_quiz(call):
     if not question:
         # Category Finished! Show Reset Option
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("🔄 Reset Progress", callback_data=f"reset:{topic_id}"))
-        markup.add(InlineKeyboardButton("🔙 Menu", callback_data=f"subj:{Question.objects.filter(category_id=topic_id).first().category.test.id}"))
+        markup.add(
+            InlineKeyboardButton("🔄 Reset Progress", callback_data=f"reset:{topic_id}"),
+            InlineKeyboardButton("🔙 Menu", callback_data=f"subj:{Question.objects.get(category_id=topic_id).category.test.id}")
+        )
 
         bot.send_message(call.message.chat.id, "🎉 **Category Completed!**\nYou have answered all questions.", reply_markup=markup, parse_mode="Markdown")
         return
@@ -132,8 +140,11 @@ def send_question_card(chat_id, question):
         for letter in ("A", "B", "C", "D", "E")
     ]
 
-    markup.add(*buttons)
-    markup.add(InlineKeyboardButton("🔙 Menu", callback_data="start_menu"))
+    markup.add(
+        *buttons,
+        InlineKeyboardButton("🔙 Menu", callback_data="start_menu"),
+        InlineKeyboardButton("🔄 Reset Progress", callback_data=f"reset:{question.category.id}")
+    )
 
     bot.send_message(chat_id, text, reply_markup=markup, parse_mode="Markdown")
 
@@ -168,8 +179,7 @@ def handle_answer(call):
     prog.save()
 
     if is_correct:
-        response = "✅ **Correct!**"
-        # \n\n_{question.explanation}_"
+        response = f"✅ **Correct!**\n\n_{question.explanation}_"
     else:
         site_url = getattr(settings, 'SITE_URL', 'http://127.0.0.1:8000')
         pdf_upload = question.category.pdfupload_set.first()
@@ -187,19 +197,26 @@ def handle_answer(call):
             f"{pdf_link}"
         )
 
-    # Edit the message to show result (removes buttons)
-    bot.edit_message_text(
-        f"{call.message.text}\n\n{response}",
-        call.message.chat.id,
-        call.message.message_id,
-        parse_mode="Markdown",
-        disable_web_page_preview=True
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        InlineKeyboardButton("➡️ Next Question", callback_data=f"topic:{question.category.id}"),
+        InlineKeyboardButton("🔙 Menu", callback_data="start_menu"),
+        InlineKeyboardButton("🔄 Reset Progress", callback_data=f"reset:{question.category.id}")
     )
 
-    # Send "Next" button immediately
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("➡️ Next Question", callback_data=f"topic:{question.category.id}"))
-    bot.send_message(call.message.chat.id, "👇", reply_markup=markup)
+    try:
+        # Edit the message to show result (removes buttons)
+        bot.edit_message_text(
+            f"{call.message.text}\n\n{response}",
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode="Markdown",
+            disable_web_page_preview=True,
+            reply_markup=markup
+        )
+    except ApiTelegramException as exc:
+        if "message is not modified" not in str(exc):
+            raise
 
 
 # --- 5. RESET HANDLER ---
