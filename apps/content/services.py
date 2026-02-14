@@ -3,7 +3,7 @@ import json
 import base64
 import fitz
 
-from django.db import close_old_connections
+from django.db import close_old_connections, transaction
 
 from apps.content.groq_client import GroqClient
 from apps.content.models import PDFUpload, Question
@@ -14,7 +14,7 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
     Args:
         current_subcat_state: The active subcategory from the previous item/page.
     Returns:
-        (new_buffer, count, updated_subcat_state)
+        (new_buffer, count, updated_subcat_state, questions_list)
     """
     questions_to_create = []
     new_buffer = buffer
@@ -48,7 +48,7 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
                 full_explanation = f"{expl_1} {expl_2}".strip()
 
                 questions_to_create.append(Question(
-                    category=pdf.category,
+                    category_id=pdf.category_id,
                     # For fragments, we usually trust the buffer's subcategory (from prev page)
                     subcategory=new_buffer.get('subcategory') or final_subcategory,
                     question_number=new_buffer.get('question_number'),
@@ -69,7 +69,7 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
                 new_buffer = item
             else:
                 questions_to_create.append(Question(
-                    category=pdf.category,
+                    category_id=pdf.category_id,
                     subcategory=final_subcategory,  # Uses "Anemiler" from previous page if needed
                     question_number=item.get('question_number'),
                     text=item['question'],
@@ -79,10 +79,7 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
                     page_number=page_num
                 ))
 
-    if questions_to_create:
-        Question.objects.bulk_create(questions_to_create)
-
-    return new_buffer, len(questions_to_create), active_subcat
+    return new_buffer, len(questions_to_create), active_subcat, questions_to_create
 
 
 def process_next_batch(pdf: PDFUpload, batch_size: int = 10):
@@ -122,14 +119,25 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10):
                 response_json = json.loads(response)
 
                 # Pass the state in, get the updated state out
-                buffer, count, current_subcat_state = parse_and_save_questions(
+                buffer, count, current_subcat_state, questions_to_create = parse_and_save_questions(
                     pdf,
                     response_json,
                     buffer,
                     current_subcat_state,
                     page_num + 1
                 )
-                total_created += count
+
+                # OPTIMIZATION: Atomic transaction for safety
+                with transaction.atomic():
+                    if questions_to_create:
+                        Question.objects.bulk_create(questions_to_create)
+                        total_created += count
+
+                    # SAVE STATE: Save subcategory so next batch (Page 11) knows "We are in Anemiler"
+                    pdf.last_processed_page = page_num + 1
+                    pdf.incomplete_question_data = buffer
+                    pdf.current_subcategory = current_subcat_state
+                    pdf.save(update_fields=['last_processed_page', 'incomplete_question_data', 'current_subcategory'])
 
         except json.JSONDecodeError:
             print(f"Error decoding JSON on page {page_num}")
@@ -137,13 +145,6 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10):
             print(f"Error processing page {page_num}: {e}")
 
         close_old_connections()
-
-        # SAVE STATE: Save subcategory so next batch (Page 11) knows "We are in Anemiler"
-        pdf.last_processed_page = page_num + 1
-        pdf.incomplete_question_data = buffer
-        pdf.current_subcategory = current_subcat_state
-        pdf.save(update_fields=['last_processed_page', 'incomplete_question_data', 'current_subcategory'])
-
         sleep(5)
 
     return f"Processed pages {start_page} to {pdf.last_processed_page}. Added {total_created} questions."
