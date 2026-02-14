@@ -1,6 +1,5 @@
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
-from typing import Optional, Dict, Any, Union
 from django.conf import settings
 from apps.content.models import Test, Category, Question
 from apps.bot.models import TelegramUser, UserCategoryProgress, UserAnswer
@@ -50,7 +49,6 @@ def show_topics(call: CallbackQuery) -> None:
 
         if prog and prog.total_answered > 0:
             total_q = Question.objects.filter(category=topic).count()
-            percent = int((prog.correct_count / prog.total_answered) * 100)
             btn_text = f"{topic.name} ({prog.correct_count}/{total_q})"
 
             if prog.total_answered >= total_q:
@@ -75,7 +73,7 @@ def show_topics(call: CallbackQuery) -> None:
             raise
 
 
-def get_next_question(user: TelegramUser, category_id: int) -> Optional[Question]:
+def get_next_question(user: TelegramUser, category_id: int) -> Question | None:
     """
     Fetches the next question.
     PRIORITY 1: Questions marked for retry (is_active=False)
@@ -187,13 +185,12 @@ def send_result_screen(user_id, category, correct, wrong, total):
     bot.send_message(user_id, text, reply_markup=markup, parse_mode="Markdown")
 
 
-def format_question_text(question: Question, category_progress: Dict[str, int]) -> str:
+def format_question_text(question: Question, category_progress: dict[str, int]) -> str:
     current = category_progress['current']
     total = category_progress['total']
 
-    bar_length = 10 
-
     progress = 0
+    bar_length = 15
     if total > 0:
         progress = current / total
 
@@ -202,7 +199,7 @@ def format_question_text(question: Question, category_progress: Dict[str, int]) 
     if current > 0 and filled_length == 0:
         filled_length = 1
 
-    bar = "▰" * filled_length + "▱" * (bar_length - filled_length)
+    bar = "▓" * filled_length + "░" * (bar_length - filled_length)
 
     progress_info = f"`{bar}` {int(progress * 100)}% • {current}/{total}"
 
@@ -254,7 +251,7 @@ def send_question_card(chat_id: int, question: Question) -> None:
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('ans:'))
-def handle_answer(call: CallbackQuery) -> Optional[None]:
+def handle_answer(call: CallbackQuery) -> None:
     _, q_id, selected = call.data.split(':')
     q_id = int(q_id)
     user_id = call.from_user.id
