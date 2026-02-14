@@ -50,7 +50,8 @@ def show_topics(call: CallbackQuery) -> None:
 
         if prog and prog.total_answered > 0:
             total_q = Question.objects.filter(category=topic).count()
-            btn_text = f"{topic.name} ({prog.correct_count}/{prog.total_answered})"
+            percent = int((prog.correct_count / prog.total_answered) * 100)
+            btn_text = f"{topic.name} ({prog.correct_count}/{total_q})"
 
             if prog.total_answered >= total_q:
                 btn_text = "✅ " + btn_text
@@ -75,19 +76,21 @@ def show_topics(call: CallbackQuery) -> None:
 
 
 def get_next_question(user: TelegramUser, category_id: int) -> Optional[Question]:
-    # 1. Prioritize Retries (is_active=False)
-    # Using join instead of list of IDs for scalability
+    """
+    Fetches the next question.
+    PRIORITY 1: Questions marked for retry (is_active=False)
+    PRIORITY 2: New questions (not in UserAnswer with is_active=True)
+    """
+
     retry_q = Question.objects.filter(
         category_id=category_id,
         useranswer__user=user,
-        useranswer__is_active=False
+        useranswer__is_active=False 
     ).order_by('page_number', 'question_number', 'id').first()
 
     if retry_q:
         return retry_q
 
-    # 2. Get Unanswered Questions
-    # Exclude questions that have an ACTIVE answer.
     return Question.objects.filter(
         category_id=category_id
     ).exclude(
@@ -101,63 +104,96 @@ def start_quiz(call: CallbackQuery) -> None:
     topic_id = int(call.data.split(':')[1])
     user_id = call.from_user.id
     user = TelegramUser.objects.get(telegram_id=user_id)
+    category = Category.objects.get(id=topic_id)
 
-    # Find first question that has NO answer from this user
-    question = Question.objects.filter(
-        category_id=topic_id
-    ).exclude(
-        useranswer__user=user
-    ).order_by('page_number', 'question_number', 'id').first()
+    total_q = Question.objects.filter(category=category).count()
+
+    correct_count = UserAnswer.objects.filter(
+        user=user, category=category, is_correct=True, is_active=True
+    ).count()
+
+    active_mistakes = UserAnswer.objects.filter(
+        user=user, category=category, is_correct=False, is_active=True
+    ).count()
+
+    pending_retries = UserAnswer.objects.filter(
+        user=user, category=category, is_correct=False, is_active=False
+    ).count()
+
+    if pending_retries > 0:
+        markup = InlineKeyboardMarkup()
+        markup.add(
+            InlineKeyboardButton(f"▶️ Resume Retry ({pending_retries})", callback_data=f"resume_retry:{topic_id}"),
+            InlineKeyboardButton("🔄 Full Reset", callback_data=f"reset:{topic_id}")
+        )
+        markup.add(InlineKeyboardButton("🔙 Menu", callback_data="start_menu"))
+
+        text = (
+            f"⚠️ **Paused Progress**\n\n"
+            f"You have **{pending_retries}** incorrect questions waiting for retry.\n"
+            f"✅ Correct: {correct_count}\n"
+            f"❌ Active Mistakes: {active_mistakes}\n"
+            f"What would you like to do?"
+        )
+        bot.send_message(user_id, text, reply_markup=markup, parse_mode="Markdown")
+        return
+
+    if (correct_count + active_mistakes) >= total_q and total_q > 0:
+        send_result_screen(user_id, category, correct_count, active_mistakes, total_q)
+        return
+
+    question = get_next_question(user, topic_id)
 
     if not question:
-        total_q = Question.objects.filter(category_id=topic_id).count()
-
-        correct_count = UserAnswer.objects.filter(
-            user=user,
-            question__category_id=topic_id,
-            is_correct=True,
-            is_active=True
-        ).count()
-
-        mistakes_count = UserAnswer.objects.filter(
-            user=user,
-            question__category_id=topic_id,
-            is_correct=False,
-            is_active=True
-        ).count()
-
-        result_text = (
-            f"🏁 **Category Finished!**\n\n"
-            f"✅ Correct: {correct_count}\n"
-            f"❌ Incorrect: {mistakes_count}\n"
-            f"📚 Total: {total_q}"
-        )
-
-        markup = InlineKeyboardMarkup(row_width=1)
-
-        if mistakes_count > 0:
-            markup.add(InlineKeyboardButton(
-                f"🔄 Retry {mistakes_count} Incorrect Questions",
-                callback_data=f"retry_fail:{topic_id}"
-            ))
-
-        markup.add(
-            InlineKeyboardButton("🔄 Reset Progress", callback_data=f"reset:{topic_id}"),
-            InlineKeyboardButton("🔙 Menu", callback_data=f"subj:{Question.objects.filter(category_id=topic_id).first().category.test.id}")
-        )
-
-        bot.send_message(call.message.chat.id, result_text, reply_markup=markup, parse_mode="Markdown")
+        send_result_screen(user_id, category, correct_count, active_mistakes, total_q)
         return
 
     send_question_card(call.message.chat.id, question)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('resume_retry:'))
+def handle_resume_retry(call: CallbackQuery) -> None:
+    topic_id = int(call.data.split(':')[1])
+    user_id = call.message.chat.id
+    user = TelegramUser.objects.get(telegram_id=user_id)
+
+    question = get_next_question(user, topic_id)
+    if question:
+        send_question_card(user_id, question)
+    else:
+        bot.send_message(user_id, "🎉 No questions left!")
+
+
+def send_result_screen(user_id, category, correct, wrong, total):
+    text = (
+        f"🏁 **Category Finished!**\n\n"
+        f"✅ Correct: {correct}\n"
+        f"❌ Incorrect: {wrong}\n"
+        f"📚 Total: {total}"
+    )
+    markup = InlineKeyboardMarkup(row_width=1)
+
+    if wrong > 0:
+        markup.add(InlineKeyboardButton(
+            f"🔄 Retry {wrong} Incorrect Questions", 
+            callback_data=f"retry_fail:{category.id}"
+        ))
+
+    markup.add(
+        InlineKeyboardButton("🔄 Full Reset", callback_data=f"reset:{category.id}"),
+        InlineKeyboardButton("🔙 Menu", callback_data="start_menu")
+    )
+
+    bot.send_message(user_id, text, reply_markup=markup, parse_mode="Markdown")
 
 
 def format_question_text(question: Question, category_progress: Dict[str, int]) -> str:
     current = category_progress['current']
     total = category_progress['total']
 
+    bar_length = 10 
+
     progress = 0
-    bar_length = 15
     if total > 0:
         progress = current / total
 
@@ -166,13 +202,13 @@ def format_question_text(question: Question, category_progress: Dict[str, int]) 
     if current > 0 and filled_length == 0:
         filled_length = 1
 
-    bar = "▓" * filled_length + "░" * (bar_length - filled_length)
+    bar = "▰" * filled_length + "▱" * (bar_length - filled_length)
 
     progress_info = f"`{bar}` {int(progress * 100)}% • {current}/{total}"
 
     header = f"📂 *{question.category.name}*"
     if question.subcategory:
-        header += f" / {question.subcategory}"
+        header += f" | {question.subcategory}"
 
     q_num = f" {question.question_number}" if question.question_number else ""
     options_text = "\n".join(question.options)
@@ -180,7 +216,7 @@ def format_question_text(question: Question, category_progress: Dict[str, int]) 
     text = (
         f"{progress_info}\n"
         f"{header}\n"
-        f"❓ **Question{q_num}**\n\n"
+        f"❓ *Question{q_num}*\n\n"
         f"{question.text}\n\n"
         f"{options_text}"
     )
@@ -192,6 +228,7 @@ def send_question_card(chat_id: int, question: Question) -> None:
     category = question.category
 
     total_questions = Question.objects.filter(category=category).count()
+
     passed_questions = UserAnswer.objects.filter(
         user=user,
         question__category=category,
@@ -202,12 +239,8 @@ def send_question_card(chat_id: int, question: Question) -> None:
     text = format_question_text(question, category_progress)
 
     markup = InlineKeyboardMarkup(row_width=2)
-
     buttons = [
-        InlineKeyboardButton(
-            text=letter,
-            callback_data=f"ans:{question.id}:{letter}"
-        )
+        InlineKeyboardButton(text=letter, callback_data=f"ans:{question.id}:{letter}")
         for letter in ("A", "B", "C", "D", "E")
     ]
 
@@ -240,31 +273,25 @@ def handle_answer(call: CallbackQuery) -> Optional[None]:
         defaults={
             'selected_option': selected,
             'is_correct': is_correct,
-            'is_active': True
+            'is_active': True 
         }
     )
 
     prog, _ = UserCategoryProgress.objects.get_or_create(user=user, category=question.category)
-    prog.total_answered += 1
+    prog.total_answered += 1 
     if is_correct:
         prog.correct_count += 1
-
-    prog.save(update_fields=['total_answered', 'correct_count'])
+    prog.save()
 
     site_url = getattr(settings, 'SITE_URL', 'http://127.0.0.1:8000')
     pdf_upload = question.category.pdfupload_set.first()
-
     pdf_link = ""
     if pdf_upload:
         page_for_link = question.page_number
         pdf_link = f"[📖 Open PDF (Page {page_for_link})]({site_url}{pdf_upload.file.url}#page={page_for_link})"
 
     if is_correct:
-        response = (
-            f"✅ **Correct!**\n"
-            f"💡 **Explanation:**\n_{question.explanation}_\n\n"
-            f"{pdf_link}"
-        )
+        response = f"✅ **Correct!**\n💡 **Explanation:**\n_{question.explanation}_\n\n{pdf_link}"
     else:
         response = (
             f"❌ **Wrong!**\n"
@@ -274,13 +301,9 @@ def handle_answer(call: CallbackQuery) -> Optional[None]:
             f"{pdf_link}"
         )
 
-    # Regenerate question text to ensure formatting is correct
     total_questions = Question.objects.filter(category=question.category).count()
-    
     passed_questions_count = UserAnswer.objects.filter(
-        user=user,
-        question__category=question.category,
-        is_active=True
+        user=user, question__category=question.category, is_active=True
     ).count()
 
     category_progress = {'current': passed_questions_count, 'total': total_questions}
@@ -319,7 +342,6 @@ def reset_progress_handler(call: CallbackQuery) -> None:
     )
 
     bot.answer_callback_query(call.id, "🔄 Full reset complete!")
-
     call.data = f"topic:{topic_id}"
     start_quiz(call)
 
