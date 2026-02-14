@@ -339,10 +339,6 @@ def handle_next_question(call: CallbackQuery) -> None:
     question = get_next_question(user, topic_id)
     if question:
         send_question_card(user_id, question)
-        try:
-            bot.delete_message(user_id, call.message.message_id)
-        except Exception:
-            pass
     else:
         category = Category.objects.get(id=topic_id)
         total_q = Question.objects.filter(category=category).count()
