@@ -99,6 +99,7 @@ def get_next_question(user: TelegramUser, category_id: int) -> Question | None:
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('topic:'))
 def start_quiz(call: CallbackQuery) -> None:
+    bot.answer_callback_query(call.id)
     topic_id = int(call.data.split(':')[1])
     user_id = call.from_user.id
     user = TelegramUser.objects.get(telegram_id=user_id)
@@ -252,6 +253,7 @@ def send_question_card(chat_id: int, question: Question) -> None:
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('ans:'))
 def handle_answer(call: CallbackQuery) -> None:
+    bot.answer_callback_query(call.id)
     _, q_id, selected = call.data.split(':')
     q_id = int(q_id)
     user_id = call.from_user.id
@@ -260,7 +262,6 @@ def handle_answer(call: CallbackQuery) -> None:
         user = TelegramUser.objects.get(telegram_id=user_id)
         question = Question.objects.get(id=q_id)
     except Exception:
-        bot.answer_callback_query(call.id, "Error: Data missing.")
         return None
 
     is_correct = (selected == question.correct_option)
@@ -314,17 +315,17 @@ def handle_answer(call: CallbackQuery) -> None:
     )
 
     try:
-        bot.delete_message(call.message.chat.id, call.message.message_id)
-    except Exception:
-        pass
-
-    bot.send_message(
-        call.message.chat.id,
-        f"{clean_question_text}\n\n{response}",
-        parse_mode="Markdown",
-        disable_web_page_preview=True,
-        reply_markup=markup
-    )
+        bot.edit_message_text(
+            f"{clean_question_text}\n\n{response}",
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode="Markdown",
+            disable_web_page_preview=True,
+            reply_markup=markup
+        )
+    except ApiTelegramException as exc:
+        if "message is not modified" not in str(exc):
+            raise
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('reset:'))
