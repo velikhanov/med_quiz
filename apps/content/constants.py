@@ -18,12 +18,11 @@ The page has a two-column layout. Read the columns top-to-bottom, left-to-right.
 - `options`: List of strings.
 - `correct_option`: Letter only (e.g. "A").
 - `explanation`: Text. **CRITICAL:** If it contains a Table, TRANSCRIBE IT to Markdown. Do NOT flag as image.
-- `requires_image`: Boolean. Set true ONLY for X-rays/visual diagnosis.
 
 ### OUTPUT FORMAT (JSON List)
 [
   { "type": "fragment", "is_continuation": true, "options": ["C)..."], "correct_option": "C", "explanation": "..." },
-  { "type": "question", "question_number": 42, "question": "...", "options": ["A)..."], "correct_option": "A", "explanation": "...", "requires_image": false, "is_incomplete": false, "subcategory": "ANEMİLER" }
+  { "type": "question", "question_number": 42, "question": "...", "options": ["A)..."], "correct_option": "A", "explanation": "...", "is_incomplete": false, "subcategory": "ANEMİLER" }
 ]
 """
 
