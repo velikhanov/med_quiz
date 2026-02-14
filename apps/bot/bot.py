@@ -164,7 +164,7 @@ def send_question_card(chat_id, question):
     ).count()
 
     progress = 0
-    bar_length = 25
+    bar_length = 20
     if total_questions > 0:
         progress = passed_questions / total_questions
 
