@@ -173,9 +173,9 @@ def send_question_card(chat_id, question):
     if passed_questions > 0 and filled_length == 0:
         filled_length = 1
 
-    bar = "●" * filled_length + "○" * (bar_length - filled_length)
+    bar = "▓" * filled_length + "░" * (bar_length - filled_length)
 
-    progress_info = f"`{bar}` {passed_questions}/{total_questions}"
+    progress_info = f"`{bar}` {int(progress * 100)}% • {passed_questions}/{total_questions}"
 
     sub_text = f"📂 *{question.subcategory}*\n" if question.subcategory else ""
     q_num = f" {question.question_number}" if question.question_number else ""
