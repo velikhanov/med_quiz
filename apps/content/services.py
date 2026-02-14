@@ -1,79 +1,61 @@
 import re
 import json
-
 import base64
 import fitz
+from time import sleep
 
-from django.db import close_old_connections, transaction
+from django.db import close_old_connections, transaction, connections
 
 from apps.content.groq_client import GroqClient
 from apps.content.models import PDFUpload, Question
 
 
 def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, page_num):
-    """
-    Args:
-        current_subcat_state: The active subcategory from the previous item/page.
-    Returns:
-        (new_buffer, count, updated_subcat_state, questions_list)
-    """
     questions_to_create = []
     new_buffer = buffer
-    active_subcat = current_subcat_state  # Start with what we knew last
+    active_subcat = current_subcat_state
+    pending_explanations = {}
 
     for item in response_json:
         if not item:
             continue
 
-        # 1. UPDATE STATE: Did the AI find a NEW header on this page?
         if item.get('subcategory'):
             active_subcat = item['subcategory'].strip().capitalize()
-        final_subcategory = active_subcat
+        current_item_subcategory = item.get('subcategory') or active_subcat
 
-        # 2. OPTION CLEANER: Aggressively rebuild options with A), B)...
-        # (We calculate this once here, so it's ready for fragments or questions)
         raw_options = item.get('options', [])
         cleaned_options = []
         if raw_options:
             for idx, opt in enumerate(raw_options):
                 opt = str(opt).strip()
-                # Remove existing prefixes like "A.", "1.", "a)"
                 opt_clean = re.sub(r'^([A-Za-z0-9]+[\.\)\-]\s*)', '', opt)
-                # Build perfect prefix
-                letter = chr(65 + idx)  # 0->A, 1->B...
-                cleaned_options.append(f"{letter}) {opt_clean}")
+                cleaned_options.append(f"{chr(65+idx)}) {opt_clean}")
 
-        # ======================================================
-        # --- TYPE 1: ORPHANED EXPLANATION (Fix for Q2) ---
-        # ======================================================
-        if item.get('type') == 'explanation_only':
+        item_type = item.get('type')
+
+        if item_type == 'explanation_only':
             explanation_text = item.get('explanation', '')
+            linked_q_num = item.get('linked_question_number')
 
-            # Scenario A: It belongs to the last question we just parsed in THIS batch
-            if questions_to_create:
-                prev_q = questions_to_create[-1]
-                if prev_q.explanation:
-                    prev_q.explanation += f"\n\n{explanation_text}"
+            if linked_q_num:
+                found_in_batch = next((q for q in questions_to_create if q.question_number == linked_q_num), None)
+                if found_in_batch:
+                    found_in_batch.explanation = (found_in_batch.explanation or "") + f"\n\n{explanation_text}"
                 else:
-                    prev_q.explanation = explanation_text
-            # Scenario B: It belongs to the last question of the PREVIOUS page (Database)
+                    pending_explanations[linked_q_num] = (pending_explanations.get(linked_q_num, "") + f"\n\n{explanation_text}").strip()
             else:
-                last_db_q = Question.objects.filter(
-                    category_id=pdf.category_id
-                ).order_by('-id').first()
+                if new_buffer:
+                    new_buffer['explanation'] = (new_buffer.get('explanation', '') + f"\n\n{explanation_text}").strip()
+                elif questions_to_create:
+                    questions_to_create[-1].explanation += f"\n\n{explanation_text}"
+                else:
+                    last_db_q = Question.objects.filter(category_id=pdf.category_id).order_by('-id').first()
+                    if last_db_q:
+                        last_db_q.explanation = (last_db_q.explanation or "") + f"\n\n{explanation_text}"
+                        last_db_q.save(update_fields=['explanation'])
 
-                if last_db_q:
-                    print(f"🔗 Linking orphaned explanation to Question {last_db_q.question_number}")
-                    if last_db_q.explanation:
-                        last_db_q.explanation += f"\n\n{explanation_text}"
-                    else:
-                        last_db_q.explanation = explanation_text
-                    last_db_q.save()
-
-        # ======================================================
-        # --- TYPE 2: FRAGMENT (Continuation from prev page) ---
-        # ======================================================
-        elif item.get('type') == 'fragment' or item.get('is_continuation'):
+        elif item_type == 'fragment' or item.get('is_continuation'):
             if new_buffer:
                 text_part_1 = new_buffer.get('question', '')
                 text_part_2 = item.get('question', '')
@@ -85,11 +67,17 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
 
                 expl_1 = new_buffer.get('explanation', '')
                 expl_2 = item.get('explanation', '')
-                full_explanation = f"{expl_1} {expl_2}".strip()
+
+                pending_expl = ""
+                q_num = new_buffer.get('question_number')
+                if q_num and q_num in pending_explanations:
+                    pending_expl = pending_explanations.pop(q_num)
+
+                full_explanation = f"{pending_expl}\n{expl_1} {expl_2}".strip()
 
                 questions_to_create.append(Question(
                     category_id=pdf.category_id,
-                    subcategory=new_buffer.get('subcategory') or final_subcategory,
+                    subcategory=new_buffer.get('subcategory') or current_item_subcategory,
                     question_number=new_buffer.get('question_number'),
                     text=full_text,
                     options=full_options,
@@ -99,23 +87,28 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
                 ))
                 new_buffer = None
 
-        # ======================================================
-        # --- TYPE 3: NEW QUESTION ---
-        # ======================================================
-        elif item.get('type') == 'question':
+        elif item_type == 'question':
+            q_num = item.get('question_number')
+            pre_filled_explanation = item.get('explanation', '')
+
+            if q_num and q_num in pending_explanations:
+                orphan_text = pending_explanations.pop(q_num)
+                pre_filled_explanation = f"{orphan_text}\n\n{pre_filled_explanation}".strip()
+
             if item.get('is_incomplete'):
-                item['subcategory'] = final_subcategory
+                item['subcategory'] = current_item_subcategory
                 item['options'] = cleaned_options
+                item['explanation'] = pre_filled_explanation
                 new_buffer = item
             else:
                 questions_to_create.append(Question(
                     category_id=pdf.category_id,
-                    subcategory=final_subcategory,
-                    question_number=item.get('question_number'),
+                    subcategory=current_item_subcategory,
+                    question_number=q_num,
                     text=item['question'],
                     options=cleaned_options,
                     correct_option=item.get('correct_option'),
-                    explanation=item.get('explanation', ''),
+                    explanation=pre_filled_explanation,
                     page_number=page_num
                 ))
 
@@ -123,11 +116,7 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
 
 
 def process_next_batch(pdf: PDFUpload, batch_size: int = 10):
-    from time import sleep
-
     buffer = pdf.incomplete_question_data
-
-    # LOAD STATE: Start where we left off (e.g., "Anemiler")
     current_subcat_state = pdf.current_subcategory
 
     doc = fitz.open(pdf.file.path)
@@ -145,11 +134,9 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10):
         if page_num >= len(doc):
             break
 
-        # OPTIMIZATION: In-memory image processing to save Disk I/O
         try:
             page = doc.load_page(page_num)
-            pix = page.get_pixmap(dpi=200)
-            # Get bytes directly (jpg format)
+            pix = page.get_pixmap(dpi=150)
             img_bytes = pix.tobytes("jpg")
             base64_image = base64.b64encode(img_bytes).decode('utf-8')
 
@@ -158,7 +145,6 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10):
             if response:
                 response_json = json.loads(response)
 
-                # Pass the state in, get the updated state out
                 buffer, count, current_subcat_state, questions_to_create = parse_and_save_questions(
                     pdf,
                     response_json,
@@ -167,13 +153,11 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10):
                     page_num + 1
                 )
 
-                # OPTIMIZATION: Atomic transaction for safety
                 with transaction.atomic():
                     if questions_to_create:
                         Question.objects.bulk_create(questions_to_create)
                         total_created += count
 
-                    # SAVE STATE: Save subcategory so next batch (Page 11) knows "We are in Anemiler"
                     pdf.last_processed_page = page_num + 1
                     pdf.incomplete_question_data = buffer
                     pdf.current_subcategory = current_subcat_state
@@ -185,14 +169,12 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10):
             print(f"Error processing page {page_num}: {e}")
 
         close_old_connections()
-        sleep(5)
+        sleep(1)
 
     return f"Processed pages {start_page} to {pdf.last_processed_page}. Added {total_created} questions."
 
 
 def background_worker(pdf_ids: list[int], batch_size: int) -> None:
-    from django.db import connections
-
     print(f"--- 🚀 Starting Background Batch (Count: {len(pdf_ids)}) ---")
     connections.close_all()
 
@@ -216,7 +198,6 @@ def background_worker(pdf_ids: list[int], batch_size: int) -> None:
             except Exception as e:
                 print(f"💀 [BG] Critical Error: Could not unlock PDF {pdf_id}: {e}")
 
-            # Cleanup connection
             connections.close_all()
 
     print("--- 🏁 Batch Complete ---")
