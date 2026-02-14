@@ -160,7 +160,7 @@ def start_quiz(call):
 
         markup.add(
             InlineKeyboardButton("🔄 Reset Progress", callback_data=f"reset:{topic_id}"),
-            InlineKeyboardButton("🔙 Menu", callback_data=f"subj:{Question.objects.get(category_id=topic_id).category.test.id}")
+            InlineKeyboardButton("🔙 Menu", callback_data=f"subj:{Question.objects.filter(category_id=topic_id).first().category.test.id}")
         )
 
         bot.send_message(call.message.chat.id, result_text, reply_markup=markup, parse_mode="Markdown")
