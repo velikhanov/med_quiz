@@ -109,15 +109,15 @@ def start_quiz(call: CallbackQuery) -> None:
     total_q = Question.objects.filter(category=category).count()
 
     correct_count = UserAnswer.objects.filter(
-        user=user, category=category, is_correct=True, is_active=True
+        user=user, question__category=category, is_correct=True, is_active=True
     ).count()
 
     active_mistakes = UserAnswer.objects.filter(
-        user=user, category=category, is_correct=False, is_active=True
+        user=user, question__category=category, is_correct=False, is_active=True
     ).count()
 
     pending_retries = UserAnswer.objects.filter(
-        user=user, category=category, is_correct=False, is_active=False
+        user=user, question__category=category, is_correct=False, is_active=False
     ).count()
 
     if pending_retries > 0:
