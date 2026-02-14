@@ -90,22 +90,36 @@ def show_topics(call):
 
 def get_next_question(user, category_id):
     """
-    Finds the next question for the user in a specific category.
-    CRITICAL: It excludes questions that have an ACTIVE answer.
+    1. Check if there are any "Soft Reset" (Retry) questions.
+    2. If yes, serve them first.
+    3. If no, serve the next brand new question.
     """
-    # 1. Find IDs of questions the user has ACTIVELY answered
-    # We filter by is_active=True so that "soft reset" questions appear as new.
-    answered_ids = UserAnswer.objects.filter(
+
+    # --- PRIORITY 1: RETRY QUESTIONS ---
+    retry_q_ids = UserAnswer.objects.filter(
         user=user,
         question__category_id=category_id,
-        is_active=True
+        is_active=False 
     ).values_list('question_id', flat=True)
 
-    # 2. Return the first question that is NOT in that list
+    if retry_q_ids:
+        return Question.objects.filter(
+            id__in=retry_q_ids
+        ).order_by('question_number', 'id').first()
+
+    # --- PRIORITY 2: NEW QUESTIONS ---
+    # Get IDs of questions the user has ACTIVELY answered (is_active=True)
+    active_answered_ids = UserAnswer.objects.filter(
+        user=user,
+        question__category_id=category_id,
+        is_active=True 
+    ).values_list('question_id', flat=True)
+
+    # Return the first question NOT in the active list
     return Question.objects.filter(
         category_id=category_id
     ).exclude(
-        id__in=answered_ids
+        id__in=active_answered_ids
     ).order_by('question_number', 'id').first()
 
 
@@ -231,17 +245,21 @@ def handle_answer(call):
 
     prog.save(update_fields=['total_answered', 'correct_count'])
 
+    site_url = getattr(settings, 'SITE_URL', 'http://127.0.0.1:8000')
+    pdf_upload = question.category.pdfupload_set.first()
+
+    pdf_link = ""
+    if pdf_upload:
+        page_for_link = question.page_number
+        pdf_link = f"[📖 Open PDF (Page {page_for_link})]({site_url}{pdf_upload.file.url}#page={page_for_link})"
+
     if is_correct:
-        response = f"✅ **Correct!**\n\n_{question.explanation}_"
+        response = (
+            f"✅ **Correct!**\n"
+            f"💡 **Explanation:**\n_{question.explanation}_\n\n"
+            f"{pdf_link}"
+        )
     else:
-        site_url = getattr(settings, 'SITE_URL', 'http://127.0.0.1:8000')
-        pdf_upload = question.category.pdfupload_set.first()
-
-        pdf_link = ""
-        if pdf_upload:
-            page_for_link = question.page_number + 1
-            pdf_link = f"[📖 Open PDF (Page {page_for_link})]({site_url}{pdf_upload.file.url}#page={page_for_link})"
-
         response = (
             f"❌ **Wrong!**\n"
             f"You chose: **{selected}**\n"
