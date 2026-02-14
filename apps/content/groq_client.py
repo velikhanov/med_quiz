@@ -5,10 +5,6 @@ from groq import Groq
 from apps.content.constants import MODEL_NAME, QUIZ_PROMPT, TEMPERATURE, MAX_TOKENS
 
 
-# from dotenv import load_dotenv
-# load_dotenv()
-
-
 class GroqClient:
     def __init__(self):
         self.client = Groq(api_key=os.environ.get("GROQ_API_KEY"))

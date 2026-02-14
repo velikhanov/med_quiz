@@ -3,7 +3,7 @@ import json
 import base64
 import fitz
 
-from django.db import connections
+from django.db import close_old_connections
 
 from apps.content.groq_client import GroqClient
 from apps.content.models import PDFUpload, Question
@@ -86,6 +86,8 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
 
 
 def process_next_batch(pdf: PDFUpload, batch_size: int = 10):
+    from time import sleep
+
     buffer = pdf.incomplete_question_data
 
     # LOAD STATE: Start where we left off (e.g., "Anemiler")
@@ -134,17 +136,21 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10):
         except Exception as e:
             print(f"Error processing page {page_num}: {e}")
 
+        close_old_connections()
+
         # SAVE STATE: Save subcategory so next batch (Page 11) knows "We are in Anemiler"
         pdf.last_processed_page = page_num + 1
         pdf.incomplete_question_data = buffer
         pdf.current_subcategory = current_subcat_state
         pdf.save(update_fields=['last_processed_page', 'incomplete_question_data', 'current_subcategory'])
 
+        sleep(5)
+
     return f"Processed pages {start_page} to {pdf.last_processed_page}. Added {total_created} questions."
 
 
 def background_worker(pdf_ids: list[int], batch_size: int) -> None:
-    from django.db import close_old_connections
+    from django.db import connections
 
     print(f"--- 🚀 Starting Background Batch (Count: {len(pdf_ids)}) ---")
     connections.close_all()
