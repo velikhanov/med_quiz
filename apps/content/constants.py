@@ -8,11 +8,16 @@ The page has a two-column layout. Read the columns top-to-bottom, left-to-right.
 1. **Main Category:** Look for a running header (e.g., "HEMATOLOJİ"). If not found, null.
 2. **Subcategory:** Look for bold, centered section titles (e.g., "ANEMİLER"). Apply the most recent one found.
 
-### PART 2: SPLIT QUESTION LOGIC
+### PART 2: FILTERING RULES (CRITICAL)
+1. **IGNORE Study Notes:** The page may contain summaries, bullet points, or "Important Information" sections (e.g., "Önemli Bilgiler"). **DO NOT** extract these.
+2. **VALID QUESTIONS ONLY:** Only extract items that are clearly **Multiple Choice Questions** with distinct options (A, B, C, D, E).
+3. **Ignore Inline Q&A:** If a line looks like "18. En olası tanı... Hipersplenizm" (Answer is inline), IGNORE IT. Only extract questions where the user must choose from a list.
+
+### PART 3: SPLIT QUESTION LOGIC
 1. **Start of Page (Continuation):** If the page starts with options (e.g., "C)...") or the end of a sentence, set "type": "fragment" and "is_continuation": true.
 2. **End of Page (Incomplete):** If the last question is cut off, mark it with "is_incomplete": true.
 
-### PART 3: EXTRACTION RULES
+### PART 4: EXTRACTION RULES
 - `question_number`: Integer (e.g., 42).
 - `question`: Full text (exclude the number).
 - `options`: List of strings.
