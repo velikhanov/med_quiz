@@ -18,11 +18,13 @@ from django.conf import settings
 from django.contrib import admin
 from django.urls import path, include
 from django.conf.urls.static import static
+from django.views.generic.base import RedirectView
 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('bot/', include('apps.bot.urls')),
+    path('', RedirectView.as_view(url='https://t.me/med_quiz_tr_bot', permanent=False)),
 ]
 
 if settings.DEBUG:

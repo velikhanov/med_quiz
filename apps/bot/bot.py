@@ -88,6 +88,27 @@ def show_topics(call):
             raise
 
 
+def get_next_question(user, category_id):
+    """
+    Finds the next question for the user in a specific category.
+    CRITICAL: It excludes questions that have an ACTIVE answer.
+    """
+    # 1. Find IDs of questions the user has ACTIVELY answered
+    # We filter by is_active=True so that "soft reset" questions appear as new.
+    answered_ids = UserAnswer.objects.filter(
+        user=user,
+        question__category_id=category_id,
+        is_active=True
+    ).values_list('question_id', flat=True)
+
+    # 2. Return the first question that is NOT in that list
+    return Question.objects.filter(
+        category_id=category_id
+    ).exclude(
+        id__in=answered_ids
+    ).order_by('question_number', 'id').first()
+
+
 # --- 3. QUIZ ENGINE: Find Next Question ---
 @bot.callback_query_handler(func=lambda call: call.data.startswith('topic:'))
 def start_quiz(call):
@@ -105,25 +126,56 @@ def start_quiz(call):
     question = Question.objects.filter(category_id=topic_id).exclude(id__in=answered_ids).order_by('question_number', 'id').first()
 
     if not question:
+        total_q = Question.objects.filter(category_id=topic_id).count()
+
+        correct_count = UserAnswer.objects.filter(
+            user=user,
+            question__category_id=topic_id,
+            is_correct=True,
+            is_active=True
+        ).count()
+
+        mistakes_count = UserAnswer.objects.filter(
+            user=user,
+            question__category_id=topic_id,
+            is_correct=False,
+            is_active=True
+        ).count()
+
+        result_text = (
+            f"🏁 **Category Finished!**\n\n"
+            f"✅ Correct: {correct_count}\n"
+            f"❌ Incorrect: {mistakes_count}\n"
+            f"📚 Total: {total_q}"
+        )
+
         # Category Finished! Show Reset Option
-        markup = InlineKeyboardMarkup()
+        markup = InlineKeyboardMarkup(row_width=1)
+
+        if mistakes_count > 0:
+            markup.add(InlineKeyboardButton(
+                f"🔄 Retry {mistakes_count} Incorrect Questions",
+                callback_data=f"retry_fail:{topic_id}"
+            ))
+
         markup.add(
             InlineKeyboardButton("🔄 Reset Progress", callback_data=f"reset:{topic_id}"),
             InlineKeyboardButton("🔙 Menu", callback_data=f"subj:{Question.objects.get(category_id=topic_id).category.test.id}")
         )
 
-        bot.send_message(call.message.chat.id, "🎉 **Category Completed!**\nYou have answered all questions.", reply_markup=markup, parse_mode="Markdown")
+        bot.send_message(call.message.chat.id, result_text, reply_markup=markup, parse_mode="Markdown")
         return
 
     send_question_card(call.message.chat.id, question)
 
 
 def send_question_card(chat_id, question):
+    sub_text = f"📂 *{question.subcategory}*\n" if question.subcategory else ""
     q_num = f" {question.question_number}" if question.question_number else ""
     options_text = "\n".join(question.options)
-
     text = (
         f"-----------------------------\n"
+        f"{sub_text}"
         f"❓ **Question{q_num}**\n\n"
         f"{question.text}\n\n"
         f"{options_text}"
@@ -176,7 +228,8 @@ def handle_answer(call):
     prog.total_answered += 1
     if is_correct:
         prog.correct_count += 1
-    prog.save()
+
+    prog.save(update_fields=['total_answered', 'correct_count'])
 
     if is_correct:
         response = f"✅ **Correct!**\n\n_{question.explanation}_"
@@ -226,15 +279,45 @@ def reset_progress_handler(call):
     user_id = call.from_user.id
     user = TelegramUser.objects.get(telegram_id=user_id)
 
-    try:
-        prog = UserCategoryProgress.objects.get(user=user, category_id=topic_id)
-        prog.reset_progress()  # Call the model method we wrote!
-        bot.answer_callback_query(call.id, "History cleared!")
+    UserAnswer.objects.filter(user=user, question__category_id=topic_id).delete()
+    UserCategoryProgress.objects.filter(user=user, category_id=topic_id).update(
+        correct_count=0, total_answered=0
+    )
 
-        # Restart quiz immediately
-        start_quiz(call)
-    except Exception:
-        bot.answer_callback_query(call.id, "Nothing to reset.")
+    bot.answer_callback_query(call.id, "🔄 Full reset complete!")
+
+    call.data = f"topic:{topic_id}"
+    start_quiz(call)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('retry_fail'))
+def handle_retry_fail(call):
+    try:
+        topic_id = int(call.data.split(":")[1])
+        user_id = call.message.chat.id
+        user = TelegramUser.objects.get(telegram_id=user_id)
+
+        # 1. "Archive" the wrong answers
+        updated_rows = UserAnswer.objects.filter(
+            user=user,
+            question__category_id=topic_id,
+            is_correct=False,
+            is_active=True
+        ).update(is_active=False)
+
+        # 2. Give Feedback
+        bot.answer_callback_query(call.id, f"Reloading {updated_rows} questions...")
+
+        # 3. Immediately fetch the first "new" question
+        question = get_next_question(user, topic_id)
+        if question:
+            send_question_card(user_id, question)
+        else:
+            bot.send_message(user_id, "🎉 No questions left to retry!")
+
+    except Exception as e:
+        print(f"Error in retry handler: {e}")
+        bot.send_message(call.message.chat.id, "❌ Error restarting quiz.")
 
 
 # --- 6. NAVIGATION HELPERS ---

@@ -45,6 +45,7 @@ class UserAnswer(models.Model):
 
     selected_option = models.CharField(max_length=1)
     is_correct = models.BooleanField()
+    is_active = models.BooleanField(default=True, help_text="Used to filter current quiz progress")
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
