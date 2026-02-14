@@ -1,5 +1,6 @@
 import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
+from typing import Optional, Dict, Any, Union
 from django.conf import settings
 from apps.content.models import Test, Category, Question
 from apps.bot.models import TelegramUser, UserCategoryProgress, UserAnswer
@@ -9,7 +10,7 @@ bot = telebot.TeleBot(settings.TELEGRAM_BOT_TOKEN, threaded=False)
 
 
 @bot.message_handler(commands=['start'])
-def handle_start(message):
+def handle_start(message: Message) -> None:
     user_id = message.from_user.id
     username = message.from_user.username
     first_name = message.from_user.first_name
@@ -33,7 +34,7 @@ def handle_start(message):
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('subj:'))
-def show_topics(call):
+def show_topics(call: CallbackQuery) -> None:
     subject_id = int(call.data.split(':')[1])
     user_id = call.from_user.id
 
@@ -73,11 +74,11 @@ def show_topics(call):
             raise
 
 
-def get_next_question(user, category_id):
+def get_next_question(user: TelegramUser, category_id: int) -> Optional[Question]:
     retry_ids = UserAnswer.objects.filter(
         user=user,
         question__category_id=category_id,
-        is_active=False 
+        is_active=False
     ).values_list('question_id', flat=True)
 
     if retry_ids:
@@ -97,7 +98,7 @@ def get_next_question(user, category_id):
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('topic:'))
-def start_quiz(call):
+def start_quiz(call: CallbackQuery) -> None:
     topic_id = int(call.data.split(':')[1])
     user_id = call.from_user.id
     user = TelegramUser.objects.get(telegram_id=user_id)
@@ -152,7 +153,42 @@ def start_quiz(call):
     send_question_card(call.message.chat.id, question)
 
 
-def send_question_card(chat_id, question):
+def format_question_text(question: Question, category_progress: Dict[str, int]) -> str:
+    current = category_progress['current']
+    total = category_progress['total']
+
+    progress = 0
+    bar_length = 20
+    if total > 0:
+        progress = current / total
+
+    filled_length = int(bar_length * progress)
+
+    if current > 0 and filled_length == 0:
+        filled_length = 1
+
+    bar = "▓" * filled_length + "░" * (bar_length - filled_length)
+
+    progress_info = f"`{bar}` {int(progress * 100)}% • {current}/{total}"
+
+    header = f"📂 *{question.category.name}*"
+    if question.subcategory:
+        header += f" / {question.subcategory}"
+
+    q_num = f" {question.question_number}" if question.question_number else ""
+    options_text = "\n".join(question.options)
+
+    text = (
+        f"{progress_info}\n"
+        f"{header}\n"
+        f"❓ **Question{q_num}**\n\n"
+        f"{question.text}\n\n"
+        f"{options_text}"
+    )
+    return text
+
+
+def send_question_card(chat_id: int, question: Question) -> None:
     user = TelegramUser.objects.get(telegram_id=chat_id)
     category = question.category
 
@@ -163,31 +199,8 @@ def send_question_card(chat_id, question):
         is_active=True
     ).count()
 
-    progress = 0
-    bar_length = 20
-    if total_questions > 0:
-        progress = passed_questions / total_questions
-
-    filled_length = int(bar_length * progress)
-
-    if passed_questions > 0 and filled_length == 0:
-        filled_length = 1
-
-    bar = "▓" * filled_length + "░" * (bar_length - filled_length)
-
-    progress_info = f"`{bar}` {int(progress * 100)}% • {passed_questions}/{total_questions}"
-
-    sub_text = f"📂 *{question.subcategory}*\n" if question.subcategory else ""
-    q_num = f" {question.question_number}" if question.question_number else ""
-    options_text = "\n".join(question.options)
-
-    text = (
-        f"{progress_info}\n"
-        f"{sub_text}"
-        f"❓ **Question{q_num}**\n\n"
-        f"{question.text}\n\n"
-        f"{options_text}"
-    )
+    category_progress = {'current': passed_questions, 'total': total_questions}
+    text = format_question_text(question, category_progress)
 
     markup = InlineKeyboardMarkup(row_width=2)
 
@@ -209,7 +222,7 @@ def send_question_card(chat_id, question):
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('ans:'))
-def handle_answer(call):
+def handle_answer(call: CallbackQuery) -> Optional[None]:
     _, q_id, selected = call.data.split(':')
     q_id = int(q_id)
     user_id = call.from_user.id
@@ -262,6 +275,18 @@ def handle_answer(call):
             f"{pdf_link}"
         )
 
+    # Regenerate question text to ensure formatting is correct
+    total_questions = Question.objects.filter(category=question.category).count()
+    
+    passed_questions_count = UserAnswer.objects.filter(
+        user=user,
+        question__category=question.category,
+        is_active=True
+    ).count()
+
+    category_progress = {'current': passed_questions_count, 'total': total_questions}
+    clean_question_text = format_question_text(question, category_progress)
+
     markup = InlineKeyboardMarkup(row_width=1)
     markup.add(
         InlineKeyboardButton("➡️ Next Question", callback_data=f"topic:{question.category.id}"),
@@ -271,7 +296,7 @@ def handle_answer(call):
 
     try:
         bot.edit_message_text(
-            f"{call.message.text}\n\n{response}",
+            f"{clean_question_text}\n\n{response}",
             call.message.chat.id,
             call.message.message_id,
             parse_mode="Markdown",
@@ -284,7 +309,7 @@ def handle_answer(call):
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('reset:'))
-def reset_progress_handler(call):
+def reset_progress_handler(call: CallbackQuery) -> None:
     topic_id = int(call.data.split(':')[1])
     user_id = call.from_user.id
     user = TelegramUser.objects.get(telegram_id=user_id)
@@ -301,7 +326,7 @@ def reset_progress_handler(call):
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('retry_fail'))
-def handle_retry_fail(call):
+def handle_retry_fail(call: CallbackQuery) -> None:
     try:
         topic_id = int(call.data.split(":")[1])
         user_id = call.message.chat.id
@@ -328,9 +353,9 @@ def handle_retry_fail(call):
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "start_menu")
-def back_to_start(call):
+def back_to_start(call: CallbackQuery) -> None:
     class FakeMessage:
-        def __init__(self, user_id, first_name, username):
+        def __init__(self, user_id: int, first_name: str, username: str) -> None:
             self.from_user = type('User', (), {'id': user_id, 'first_name': first_name, 'username': username})()
             self.chat = type('Chat', (), {'id': user_id})()
 
