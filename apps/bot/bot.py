@@ -1,6 +1,7 @@
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
 from django.conf import settings
+from django.db.models import Count, Q
 from apps.content.models import Test, Category, Question
 from apps.bot.models import TelegramUser, UserCategoryProgress, UserAnswer
 from telebot.apihelper import ApiTelegramException
@@ -40,15 +41,20 @@ def show_topics(call: CallbackQuery) -> None:
     user = TelegramUser.objects.get(telegram_id=user_id)
     subject = Test.objects.get(id=subject_id)
 
-    topics = Category.objects.filter(test=subject)
+    # Optimization: Annotate with question count
+    topics = Category.objects.filter(test=subject).annotate(total_questions=Count('question'))
+
+    # Optimization: Fetch all progress for these topics in one query
+    progress_qs = UserCategoryProgress.objects.filter(user=user, category__in=topics)
+    progress_map = {p.category_id: p for p in progress_qs}
 
     markup = InlineKeyboardMarkup()
 
     for topic in topics:
-        prog = UserCategoryProgress.objects.filter(user=user, category=topic).first()
+        prog = progress_map.get(topic.id)
 
         if prog and prog.total_answered > 0:
-            total_q = Question.objects.filter(category=topic).count()
+            total_q = topic.total_questions
             btn_text = f"{topic.name} ({prog.correct_count}/{total_q})"
 
             if prog.total_answered >= total_q:
@@ -84,7 +90,7 @@ def get_next_question(user: TelegramUser, category_id: int) -> Question | None:
         category_id=category_id,
         useranswer__user=user,
         useranswer__is_active=False
-    ).order_by('page_number', 'question_number', 'id').first()
+    ).select_related('category').defer('explanation').order_by('page_number', 'question_number', 'id').first()
 
     if retry_q:
         return retry_q
@@ -94,7 +100,7 @@ def get_next_question(user: TelegramUser, category_id: int) -> Question | None:
     ).exclude(
         useranswer__user=user,
         useranswer__is_active=True
-    ).order_by('page_number', 'question_number', 'id').first()
+    ).select_related('category').defer('explanation').order_by('page_number', 'question_number', 'id').first()
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('topic:'))
@@ -107,17 +113,16 @@ def start_quiz(call: CallbackQuery) -> None:
 
     total_q = Question.objects.filter(category=category).count()
 
-    correct_count = UserAnswer.objects.filter(
-        user=user, question__category=category, is_correct=True, is_active=True
-    ).count()
+    # Optimization: Use aggregate to fetch all stats in one query
+    stats = UserAnswer.objects.filter(user=user, question__category=category).aggregate(
+        correct_count=Count('id', filter=Q(is_correct=True, is_active=True)),
+        active_mistakes=Count('id', filter=Q(is_correct=False, is_active=True)),
+        pending_retries=Count('id', filter=Q(is_correct=False, is_active=False))
+    )
 
-    active_mistakes = UserAnswer.objects.filter(
-        user=user, question__category=category, is_correct=False, is_active=True
-    ).count()
-
-    pending_retries = UserAnswer.objects.filter(
-        user=user, question__category=category, is_correct=False, is_active=False
-    ).count()
+    correct_count = stats['correct_count']
+    active_mistakes = stats['active_mistakes']
+    pending_retries = stats['pending_retries']
 
     if pending_retries > 0:
         markup = InlineKeyboardMarkup()
@@ -260,7 +265,7 @@ def handle_answer(call: CallbackQuery) -> None:
 
     try:
         user = TelegramUser.objects.get(telegram_id=user_id)
-        question = Question.objects.get(id=q_id)
+        question = Question.objects.select_related('category').get(id=q_id)
     except Exception:
         return None
 
