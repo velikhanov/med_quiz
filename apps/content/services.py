@@ -1,4 +1,3 @@
-import os
 import json
 
 import base64
@@ -6,7 +5,6 @@ import fitz
 
 from django.db import connections
 
-from django.conf import settings
 from apps.content.groq_client import GroqClient
 from apps.content.models import PDFUpload, Question
 

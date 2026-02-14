@@ -157,7 +157,7 @@ def format_question_text(question: Question, category_progress: Dict[str, int]) 
     total = category_progress['total']
 
     progress = 0
-    bar_length = 20
+    bar_length = 10
     if total > 0:
         progress = current / total
 
