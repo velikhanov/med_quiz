@@ -26,32 +26,54 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
             continue
 
         # 1. UPDATE STATE: Did the AI find a NEW header on this page?
-        # If item has a specific subcategory, update our "Active" tracker.
         if item.get('subcategory'):
             active_subcat = item['subcategory'].strip().capitalize()
-
-        # Use the active state (inherits from previous page if item['subcategory'] is missing)
         final_subcategory = active_subcat
 
+        # 2. OPTION CLEANER: Aggressively rebuild options with A), B)...
+        # (We calculate this once here, so it's ready for fragments or questions)
         raw_options = item.get('options', [])
         cleaned_options = []
-
         if raw_options:
             for idx, opt in enumerate(raw_options):
                 opt = str(opt).strip()
-
-                # 1. STRIP existing prefixes if the AI added them (e.g., "A.", "a)", "1-")
-                # This regex removes "A)", "A.", "1.", "1)" at the start
+                # Remove existing prefixes like "A.", "1.", "a)"
                 opt_clean = re.sub(r'^([A-Za-z0-9]+[\.\)\-]\s*)', '', opt)
+                # Build perfect prefix
+                letter = chr(65 + idx)  # 0->A, 1->B...
+                cleaned_options.append(f"{letter}) {opt_clean}")
 
-                # 2. BUILD our own perfect prefix
-                letter = chr(65 + idx)  # 0->A, 1->B, 2->C...
-                final_opt = f"{letter}) {opt_clean}"
+        # ======================================================
+        # --- TYPE 1: ORPHANED EXPLANATION (Fix for Q2) ---
+        # ======================================================
+        if item.get('type') == 'explanation_only':
+            explanation_text = item.get('explanation', '')
 
-                cleaned_options.append(final_opt)
+            # Scenario A: It belongs to the last question we just parsed in THIS batch
+            if questions_to_create:
+                prev_q = questions_to_create[-1]
+                if prev_q.explanation:
+                    prev_q.explanation += f"\n\n{explanation_text}"
+                else:
+                    prev_q.explanation = explanation_text
+            # Scenario B: It belongs to the last question of the PREVIOUS page (Database)
+            else:
+                last_db_q = Question.objects.filter(
+                    category_id=pdf.category_id
+                ).order_by('-id').first()
 
-        # --- CASE 1: FRAGMENT ---
-        if item.get('type') == 'fragment' or item.get('is_continuation'):
+                if last_db_q:
+                    print(f"🔗 Linking orphaned explanation to Question {last_db_q.question_number}")
+                    if last_db_q.explanation:
+                        last_db_q.explanation += f"\n\n{explanation_text}"
+                    else:
+                        last_db_q.explanation = explanation_text
+                    last_db_q.save()
+
+        # ======================================================
+        # --- TYPE 2: FRAGMENT (Continuation from prev page) ---
+        # ======================================================
+        elif item.get('type') == 'fragment' or item.get('is_continuation'):
             if new_buffer:
                 text_part_1 = new_buffer.get('question', '')
                 text_part_2 = item.get('question', '')
@@ -67,7 +89,6 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
 
                 questions_to_create.append(Question(
                     category_id=pdf.category_id,
-                    # For fragments, we usually trust the buffer's subcategory (from prev page)
                     subcategory=new_buffer.get('subcategory') or final_subcategory,
                     question_number=new_buffer.get('question_number'),
                     text=full_text,
@@ -77,19 +98,19 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
                     page_number=page_num
                 ))
                 new_buffer = None
-            continue
 
-        # --- CASE 2: NEW QUESTION ---
-        if item.get('type') == 'question':
+        # ======================================================
+        # --- TYPE 3: NEW QUESTION ---
+        # ======================================================
+        elif item.get('type') == 'question':
             if item.get('is_incomplete'):
-                # Buffer it! But store the CURRENT detected subcategory
                 item['subcategory'] = final_subcategory
                 item['options'] = cleaned_options
                 new_buffer = item
             else:
                 questions_to_create.append(Question(
                     category_id=pdf.category_id,
-                    subcategory=final_subcategory,  # Uses "Anemiler" from previous page if needed
+                    subcategory=final_subcategory,
                     question_number=item.get('question_number'),
                     text=item['question'],
                     options=cleaned_options,
