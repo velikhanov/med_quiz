@@ -309,7 +309,7 @@ def handle_answer(call: CallbackQuery) -> None:
 
     markup = InlineKeyboardMarkup(row_width=1)
     markup.add(
-        InlineKeyboardButton("➡️ Next Question", callback_data=f"topic:{question.category.id}"),
+        InlineKeyboardButton("➡️ Next Question", callback_data=f"next:{question.category.id}"),
         InlineKeyboardButton("🔙 Menu", callback_data="start_menu"),
         InlineKeyboardButton("🔄 Reset Progress", callback_data=f"reset:{question.category.id}")
     )
@@ -328,6 +328,29 @@ def handle_answer(call: CallbackQuery) -> None:
             raise
 
 
+@bot.callback_query_handler(func=lambda call: call.data.startswith('next:'))
+def handle_next_question(call: CallbackQuery) -> None:
+    bot.answer_callback_query(call.id)
+
+    topic_id = int(call.data.split(':')[1])
+    user_id = call.message.chat.id
+    user = TelegramUser.objects.get(telegram_id=user_id)
+
+    question = get_next_question(user, topic_id)
+    if question:
+        send_question_card(user_id, question)
+        try:
+            bot.delete_message(user_id, call.message.message_id)
+        except Exception:
+            pass
+    else:
+        category = Category.objects.get(id=topic_id)
+        total_q = Question.objects.filter(category=category).count()
+        correct_count = UserAnswer.objects.filter(user=user, question__category=category, is_correct=True, is_active=True).count()
+        mistakes_count = UserAnswer.objects.filter(user=user, question__category=category, is_correct=False, is_active=True).count()
+        send_result_screen(user_id, category, correct_count, mistakes_count, total_q)
+
+
 @bot.callback_query_handler(func=lambda call: call.data.startswith('reset:'))
 def reset_progress_handler(call: CallbackQuery) -> None:
     topic_id = int(call.data.split(':')[1])
@@ -344,7 +367,7 @@ def reset_progress_handler(call: CallbackQuery) -> None:
     start_quiz(call)
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('retry_fail'))
+@bot.callback_query_handler(func=lambda call: call.data.startswith('retry_fail:'))
 def handle_retry_fail(call: CallbackQuery) -> None:
     try:
         topic_id = int(call.data.split(":")[1])
