@@ -293,14 +293,15 @@ def handle_answer(call: CallbackQuery) -> None:
         page_for_link = question.page_number
         pdf_link = f"[📖 Open PDF (Page {page_for_link})]({site_url}{pdf_upload.file.url}#page={page_for_link})"
 
+    explanation = question.explanation if question.explanation else "Not found"
     if is_correct:
-        response = f"✅ **Correct!**\n💡 **Explanation:**\n_{question.explanation if question.explanation else "Not found"}_\n\n{pdf_link}"
+        response = f"✅ **Correct!**\n💡 **Explanation:**\n_{explanation}_\n\n{pdf_link}"
     else:
         response = (
             f"❌ **Wrong!**\n"
             f"You chose: **{selected}**\n"
             f"Correct: **{question.correct_option}**\n\n"
-            f"💡 **Explanation:**\n_{question.explanation if question.explanation else "Not found"}_\n\n"
+            f"💡 **Explanation:**\n_{explanation}_\n\n"
             f"{pdf_link}"
         )
 
