@@ -99,3 +99,11 @@ class Question(models.Model):
     correct_option = models.CharField(max_length=1)
     explanation = models.TextField(blank=True, null=True)
     page_number = models.IntegerField(help_text="The page number in the PDF")
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['category', 'page_number', 'question_number', 'id']),
+        ]
+
+    def __str__(self):
+        return f"{self.text[:50]}..."

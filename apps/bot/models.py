@@ -52,6 +52,7 @@ class UserAnswer(models.Model):
         unique_together = ('user', 'question')  # One answer per question
         indexes = [
             models.Index(fields=['user', 'is_correct']),
+            models.Index(fields=['user', 'is_active']),
         ]
 
     def __str__(self):

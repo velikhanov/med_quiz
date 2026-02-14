@@ -75,25 +75,24 @@ def show_topics(call: CallbackQuery) -> None:
 
 
 def get_next_question(user: TelegramUser, category_id: int) -> Optional[Question]:
-    retry_ids = UserAnswer.objects.filter(
-        user=user,
-        question__category_id=category_id,
-        is_active=False
-    ).values_list('question_id', flat=True)
+    # 1. Prioritize Retries (is_active=False)
+    # Using join instead of list of IDs for scalability
+    retry_q = Question.objects.filter(
+        category_id=category_id,
+        useranswer__user=user,
+        useranswer__is_active=False
+    ).order_by('page_number', 'question_number', 'id').first()
 
-    if retry_ids:
-        return Question.objects.filter(id__in=retry_ids).order_by('page_number', 'question_number', 'id').first()
+    if retry_q:
+        return retry_q
 
-    active_answered_ids = UserAnswer.objects.filter(
-        user=user,
-        question__category_id=category_id,
-        is_active=True
-    ).values_list('question_id', flat=True)
-
+    # 2. Get Unanswered Questions
+    # Exclude questions that have an ACTIVE answer.
     return Question.objects.filter(
         category_id=category_id
     ).exclude(
-        id__in=active_answered_ids
+        useranswer__user=user,
+        useranswer__is_active=True
     ).order_by('page_number', 'question_number', 'id').first()
 
 
@@ -103,12 +102,12 @@ def start_quiz(call: CallbackQuery) -> None:
     user_id = call.from_user.id
     user = TelegramUser.objects.get(telegram_id=user_id)
 
-    answered_ids = UserAnswer.objects.filter(
-        user=user,
-        question__category_id=topic_id
-    ).values_list('question_id', flat=True)
-
-    question = Question.objects.filter(category_id=topic_id).exclude(id__in=answered_ids).order_by('page_number', 'question_number', 'id').first()
+    # Find first question that has NO answer from this user
+    question = Question.objects.filter(
+        category_id=topic_id
+    ).exclude(
+        useranswer__user=user
+    ).order_by('page_number', 'question_number', 'id').first()
 
     if not question:
         total_q = Question.objects.filter(category_id=topic_id).count()

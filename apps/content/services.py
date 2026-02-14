@@ -11,26 +11,6 @@ from apps.content.groq_client import GroqClient
 from apps.content.models import PDFUpload, Question
 
 
-def encode_image(image_path: str) -> str:
-    with open(image_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode('utf-8')
-
-
-def render_page_image(doc, page_num, pdf_id):
-    """Renders a single PDF page to a temporary JPG file."""
-    page = doc.load_page(page_num)
-    pix = page.get_pixmap(dpi=200)
-
-    img_filename = f'temp_{pdf_id}_{page_num}.jpg'
-    img_path = os.path.join(settings.MEDIA_ROOT, 'diagrams', img_filename)
-
-    # Ensure directory exists
-    os.makedirs(os.path.dirname(img_path), exist_ok=True)
-    pix.save(img_path)
-
-    return img_path
-
-
 def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, page_num):
     """
     Args:
@@ -128,10 +108,14 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10):
         if page_num >= len(doc):
             break
 
-        img_path = render_page_image(doc, page_num, pdf.id)
-
+        # OPTIMIZATION: In-memory image processing to save Disk I/O
         try:
-            base64_image = encode_image(img_path)
+            page = doc.load_page(page_num)
+            pix = page.get_pixmap(dpi=200)
+            # Get bytes directly (jpg format)
+            img_bytes = pix.tobytes("jpg")
+            base64_image = base64.b64encode(img_bytes).decode('utf-8')
+
             response = groq.get_quiz_content_from_image(base64_image)
 
             if response:
@@ -149,9 +133,8 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10):
 
         except json.JSONDecodeError:
             print(f"Error decoding JSON on page {page_num}")
-        finally:
-            if os.path.exists(img_path):
-                os.remove(img_path)
+        except Exception as e:
+            print(f"Error processing page {page_num}: {e}")
 
         # SAVE STATE: Save subcategory so next batch (Page 11) knows "We are in Anemiler"
         pdf.last_processed_page = page_num + 1
