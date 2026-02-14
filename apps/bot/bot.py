@@ -83,7 +83,7 @@ def get_next_question(user: TelegramUser, category_id: int) -> Question | None:
     retry_q = Question.objects.filter(
         category_id=category_id,
         useranswer__user=user,
-        useranswer__is_active=False 
+        useranswer__is_active=False
     ).order_by('page_number', 'question_number', 'id').first()
 
     if retry_q:
@@ -173,7 +173,7 @@ def send_result_screen(user_id, category, correct, wrong, total):
 
     if wrong > 0:
         markup.add(InlineKeyboardButton(
-            f"🔄 Retry {wrong} Incorrect Questions", 
+            f"🔄 Retry {wrong} Incorrect Questions",
             callback_data=f"retry_fail:{category.id}"
         ))
 
@@ -270,12 +270,12 @@ def handle_answer(call: CallbackQuery) -> None:
         defaults={
             'selected_option': selected,
             'is_correct': is_correct,
-            'is_active': True 
+            'is_active': True
         }
     )
 
     prog, _ = UserCategoryProgress.objects.get_or_create(user=user, category=question.category)
-    prog.total_answered += 1 
+    prog.total_answered += 1
     if is_correct:
         prog.correct_count += 1
     prog.save()
@@ -314,17 +314,17 @@ def handle_answer(call: CallbackQuery) -> None:
     )
 
     try:
-        bot.edit_message_text(
-            f"{clean_question_text}\n\n{response}",
-            call.message.chat.id,
-            call.message.message_id,
-            parse_mode="Markdown",
-            disable_web_page_preview=True,
-            reply_markup=markup
-        )
-    except ApiTelegramException as exc:
-        if "message is not modified" not in str(exc):
-            raise
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+    except Exception:
+        pass
+
+    bot.send_message(
+        call.message.chat.id,
+        f"{clean_question_text}\n\n{response}",
+        parse_mode="Markdown",
+        disable_web_page_preview=True,
+        reply_markup=markup
+    )
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('reset:'))
