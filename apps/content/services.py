@@ -1,3 +1,4 @@
+import re
 import json
 
 import base64
@@ -32,6 +33,23 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
         # Use the active state (inherits from previous page if item['subcategory'] is missing)
         final_subcategory = active_subcat
 
+        raw_options = item.get('options', [])
+        cleaned_options = []
+
+        if raw_options:
+            for idx, opt in enumerate(raw_options):
+                opt = str(opt).strip()
+
+                # 1. STRIP existing prefixes if the AI added them (e.g., "A.", "a)", "1-")
+                # This regex removes "A)", "A.", "1.", "1)" at the start
+                opt_clean = re.sub(r'^([A-Za-z0-9]+[\.\)\-]\s*)', '', opt)
+
+                # 2. BUILD our own perfect prefix
+                letter = chr(65 + idx)  # 0->A, 1->B, 2->C...
+                final_opt = f"{letter}) {opt_clean}"
+
+                cleaned_options.append(final_opt)
+
         # --- CASE 1: FRAGMENT ---
         if item.get('type') == 'fragment' or item.get('is_continuation'):
             if new_buffer:
@@ -40,7 +58,7 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
                 full_text = f"{text_part_1} {text_part_2}".strip()
 
                 opts_1 = new_buffer.get('options', [])
-                opts_2 = item.get('options', [])
+                opts_2 = cleaned_options
                 full_options = opts_1 + opts_2
 
                 expl_1 = new_buffer.get('explanation', '')
@@ -66,6 +84,7 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
             if item.get('is_incomplete'):
                 # Buffer it! But store the CURRENT detected subcategory
                 item['subcategory'] = final_subcategory
+                item['options'] = cleaned_options
                 new_buffer = item
             else:
                 questions_to_create.append(Question(
@@ -73,7 +92,7 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
                     subcategory=final_subcategory,  # Uses "Anemiler" from previous page if needed
                     question_number=item.get('question_number'),
                     text=item['question'],
-                    options=item['options'],
+                    options=cleaned_options,
                     correct_option=item.get('correct_option'),
                     explanation=item.get('explanation', ''),
                     page_number=page_num

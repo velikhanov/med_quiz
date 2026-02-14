@@ -9,25 +9,27 @@ The page has a two-column layout. Read the columns top-to-bottom, left-to-right.
 2. **Subcategory:** Look for bold, centered section titles (e.g., "ANEMİLER"). Apply the most recent one found.
 
 ### PART 2: FILTERING RULES (CRITICAL)
-1. **IGNORE Study Notes:** The page may contain summaries, bullet points, or "Important Information" sections (e.g., "Önemli Bilgiler"). **DO NOT** extract these.
-2. **VALID QUESTIONS ONLY:** Only extract items that are clearly **Multiple Choice Questions** with distinct options (A, B, C, D, E).
-3. **Ignore Inline Q&A:** If a line looks like "18. En olası tanı... Hipersplenizm" (Answer is inline), IGNORE IT. Only extract questions where the user must choose from a list.
+1. **Global Summaries ONLY:** You may see large sidebars or boxes titled "Önemli Bilgiler", "Spot Bilgiler", or "Özet". **IGNORE THESE.**
+2. **Inline Q&A:** Ignore one-line "Question... Answer" formats (e.g. "18. En olası tanı... Hipersplenizm"). Only extract full Multiple Choice Questions.
+3. **Keep Explanations:** Do NOT ignore the text immediately following a question's options. That is the explanation.
 
-### PART 3: SPLIT QUESTION LOGIC
+### PART 3: EXTRACTION RULES
+- `question_number`: Integer.
+- `question`: Full text.
+- `options`: List of strings. Just extract the text of the options. The order MUST match the visual order (First option is A, second is B, etc).
+- `correct_option`: Letter only (e.g. "A").
+- `explanation`: Text. 
+    * Look for text immediately after the options (labeled "Çözüm", "Not" or just a paragraph).
+    * CAPTURE THIS TEXT. Do not treat it as a study note.
+
+### PART 4: SPLIT QUESTION LOGIC
 1. **Start of Page (Continuation):** If the page starts with options (e.g., "C)...") or the end of a sentence, set "type": "fragment" and "is_continuation": true.
 2. **End of Page (Incomplete):** If the last question is cut off, mark it with "is_incomplete": true.
-
-### PART 4: EXTRACTION RULES
-- `question_number`: Integer (e.g., 42).
-- `question`: Full text (exclude the number).
-- `options`: List of strings.
-- `correct_option`: Letter only (e.g. "A").
-- `explanation`: Text. **CRITICAL:** If it contains a Table, TRANSCRIBE IT to Markdown. Do NOT flag as image.
 
 ### OUTPUT FORMAT (JSON List)
 [
   { "type": "fragment", "is_continuation": true, "options": ["C)..."], "correct_option": "C", "explanation": "..." },
-  { "type": "question", "question_number": 42, "question": "...", "options": ["A)..."], "correct_option": "A", "explanation": "...", "is_incomplete": false, "subcategory": "ANEMİLER" }
+  { "type": "question", "question_number": 42, "question": "...", "options": ["A)..."], "correct_option": "A", "explanation": "This text explains why A is correct...", "is_incomplete": false, "subcategory": "ANEMİLER" }
 ]
 """
 

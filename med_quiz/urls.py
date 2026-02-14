@@ -25,6 +25,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('bot/', include('apps.bot.urls')),
     path('', RedirectView.as_view(url='https://t.me/med_quiz_tr_bot', permanent=False)),
+    path('favicon.ico', RedirectView.as_view(url='/static/favicon.ico', permanent=True)),
 ]
 
 if settings.DEBUG:
