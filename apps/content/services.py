@@ -144,30 +144,26 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10):
 
 
 def background_worker(pdf_ids: list[int], batch_size: int) -> None:
+    from django.db import close_old_connections
+
     print(f"--- 🚀 Starting Background Batch (Count: {len(pdf_ids)}) ---")
     connections.close_all()
 
     for pdf_id in pdf_ids:
         try:
-            # QUERY #1 (The Only Read): Get the object once
             pdf = PDFUpload.objects.get(id=pdf_id)
             print(f"▶️ Processing: {pdf.title}...")
 
-            # OPTIMIZATION: Pass the 'pdf' OBJECT, not the ID.
-            # This prevents process_next_batch from hitting the DB again.
             result = process_next_batch(pdf, batch_size)
-
             print(f"✅ Finished {pdf.title}: {result}")
-
         except PDFUpload.DoesNotExist:
             print(f"❌ Error: PDF {pdf_id} not found.")
         except Exception as e:
             print(f"❌ Error processing PDF {pdf_id}: {e}")
         finally:
-            # QUERY #2 (The Write): Unlock
-            # We use filter().update() which creates a direct SQL UPDATE command.
-            # It does NOT fetch the object into memory.
             try:
+                close_old_connections()
+
                 PDFUpload.objects.filter(id=pdf_id).update(is_processing=False)
                 print(f"🔓 [BG] Unlocked PDF {pdf_id}")
             except Exception as e:
