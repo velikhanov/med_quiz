@@ -169,15 +169,13 @@ def send_question_card(chat_id, question):
         progress = passed_questions / total_questions
 
     filled_length = int(bar_length * progress)
-    
-    # Ensure at least one block is shown if there is any progress
+
     if passed_questions > 0 and filled_length == 0:
         filled_length = 1
 
-    bar = "█" * filled_length + "░" * (bar_length - filled_length)
-    percent = progress * 100
+    bar = "●" * filled_length + "○" * (bar_length - filled_length)
 
-    progress_info = f"[{bar}] {percent:.1f}% ({passed_questions}/{total_questions})"
+    progress_info = f"`{bar}` {passed_questions}/{total_questions}"
 
     sub_text = f"📂 *{question.subcategory}*\n" if question.subcategory else ""
     q_num = f" {question.question_number}" if question.question_number else ""
