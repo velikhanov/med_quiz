@@ -1,37 +1,28 @@
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from django.conf import settings
-
-# Import models from BOTH apps
 from apps.content.models import Test, Category, Question
 from apps.bot.models import TelegramUser, UserCategoryProgress, UserAnswer
 from telebot.apihelper import ApiTelegramException
 
-
-# Initialize Bot
 bot = telebot.TeleBot(settings.TELEGRAM_BOT_TOKEN, threaded=False)
 
 
-# --- 1. START: Register User & Show Subjects (Tests) ---
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     user_id = message.from_user.id
     username = message.from_user.username
     first_name = message.from_user.first_name
 
-    # 1. Register User in DB
     TelegramUser.objects.get_or_create(
         telegram_id=user_id,
         defaults={'username': username, 'first_name': first_name}
     )
 
-    # 2. Fetch Subjects (e.g. DAHİLİYE, PEDİATRİ)
     subjects = Test.objects.all()
 
-    # 3. Build Keyboard
     markup = InlineKeyboardMarkup(row_width=2)
     buttons = [
-        # Callback: "subj:ID"
         InlineKeyboardButton(sub.name, callback_data=f"subj:{sub.id}")
         for sub in subjects
     ]
@@ -41,31 +32,25 @@ def handle_start(message):
     bot.send_message(user_id, welcome_msg, reply_markup=markup, parse_mode="Markdown")
 
 
-# --- 2. MENU: Show Topics (Categories) inside a Subject ---
 @bot.callback_query_handler(func=lambda call: call.data.startswith('subj:'))
 def show_topics(call):
     subject_id = int(call.data.split(':')[1])
     user_id = call.from_user.id
 
-    # Get the User object
     user = TelegramUser.objects.get(telegram_id=user_id)
     subject = Test.objects.get(id=subject_id)
 
-    # Get all topics for this subject
     topics = Category.objects.filter(test=subject)
 
     markup = InlineKeyboardMarkup()
 
     for topic in topics:
-        # Check progress
         prog = UserCategoryProgress.objects.filter(user=user, category=topic).first()
 
-        # Format: "Hematoloji (5/50)" or just "Hematoloji"
         if prog and prog.total_answered > 0:
             total_q = Question.objects.filter(category=topic).count()
             btn_text = f"{topic.name} ({prog.correct_count}/{prog.total_answered})"
 
-            # If completed, add a checkmark
             if prog.total_answered >= total_q:
                 btn_text = "✅ " + btn_text
         else:
@@ -89,55 +74,40 @@ def show_topics(call):
 
 
 def get_next_question(user, category_id):
-    """
-    1. Check if there are any "Soft Reset" (Retry) questions.
-    2. If yes, serve them first.
-    3. If no, serve the next brand new question.
-    """
-
-    # --- PRIORITY 1: RETRY QUESTIONS ---
-    retry_q_ids = UserAnswer.objects.filter(
+    retry_ids = UserAnswer.objects.filter(
         user=user,
         question__category_id=category_id,
         is_active=False 
     ).values_list('question_id', flat=True)
 
-    if retry_q_ids:
-        return Question.objects.filter(
-            id__in=retry_q_ids
-        ).order_by('question_number', 'id').first()
+    if retry_ids:
+        return Question.objects.filter(id__in=retry_ids).order_by('page_number', 'question_number', 'id').first()
 
-    # --- PRIORITY 2: NEW QUESTIONS ---
-    # Get IDs of questions the user has ACTIVELY answered (is_active=True)
     active_answered_ids = UserAnswer.objects.filter(
         user=user,
         question__category_id=category_id,
-        is_active=True 
+        is_active=True
     ).values_list('question_id', flat=True)
 
-    # Return the first question NOT in the active list
     return Question.objects.filter(
         category_id=category_id
     ).exclude(
         id__in=active_answered_ids
-    ).order_by('question_number', 'id').first()
+    ).order_by('page_number', 'question_number', 'id').first()
 
 
-# --- 3. QUIZ ENGINE: Find Next Question ---
 @bot.callback_query_handler(func=lambda call: call.data.startswith('topic:'))
 def start_quiz(call):
     topic_id = int(call.data.split(':')[1])
     user_id = call.from_user.id
     user = TelegramUser.objects.get(telegram_id=user_id)
 
-    # Find questions the user has ALREADY answered
     answered_ids = UserAnswer.objects.filter(
         user=user,
         question__category_id=topic_id
     ).values_list('question_id', flat=True)
 
-    # Find the first question NOT in that list
-    question = Question.objects.filter(category_id=topic_id).exclude(id__in=answered_ids).order_by('question_number', 'id').first()
+    question = Question.objects.filter(category_id=topic_id).exclude(id__in=answered_ids).order_by('page_number', 'question_number', 'id').first()
 
     if not question:
         total_q = Question.objects.filter(category_id=topic_id).count()
@@ -163,7 +133,6 @@ def start_quiz(call):
             f"📚 Total: {total_q}"
         )
 
-        # Category Finished! Show Reset Option
         markup = InlineKeyboardMarkup(row_width=1)
 
         if mistakes_count > 0:
@@ -184,11 +153,38 @@ def start_quiz(call):
 
 
 def send_question_card(chat_id, question):
+    user = TelegramUser.objects.get(telegram_id=chat_id)
+    category = question.category
+
+    total_questions = Question.objects.filter(category=category).count()
+    passed_questions = UserAnswer.objects.filter(
+        user=user,
+        question__category=category,
+        is_active=True
+    ).count()
+
+    progress = 0
+    bar_length = 25
+    if total_questions > 0:
+        progress = passed_questions / total_questions
+
+    filled_length = int(bar_length * progress)
+    
+    # Ensure at least one block is shown if there is any progress
+    if passed_questions > 0 and filled_length == 0:
+        filled_length = 1
+
+    bar = "█" * filled_length + "░" * (bar_length - filled_length)
+    percent = progress * 100
+
+    progress_info = f"[{bar}] {percent:.1f}% ({passed_questions}/{total_questions})"
+
     sub_text = f"📂 *{question.subcategory}*\n" if question.subcategory else ""
     q_num = f" {question.question_number}" if question.question_number else ""
     options_text = "\n".join(question.options)
+
     text = (
-        f"-----------------------------\n"
+        f"{progress_info}\n"
         f"{sub_text}"
         f"❓ **Question{q_num}**\n\n"
         f"{question.text}\n\n"
@@ -197,7 +193,6 @@ def send_question_card(chat_id, question):
 
     markup = InlineKeyboardMarkup(row_width=2)
 
-    # Strictly hardcoded A, B, C, D, E — no loops over the options text!
     buttons = [
         InlineKeyboardButton(
             text=letter,
@@ -215,7 +210,6 @@ def send_question_card(chat_id, question):
     bot.send_message(chat_id, text, reply_markup=markup, parse_mode="Markdown")
 
 
-# --- 4. ANSWER HANDLER: Check & Save ---
 @bot.callback_query_handler(func=lambda call: call.data.startswith('ans:'))
 def handle_answer(call):
     _, q_id, selected = call.data.split(':')
@@ -231,13 +225,15 @@ def handle_answer(call):
 
     is_correct = (selected == question.correct_option)
 
-    # 1. Save Attempt
     UserAnswer.objects.update_or_create(
         user=user, question=question,
-        defaults={'selected_option': selected, 'is_correct': is_correct}
+        defaults={
+            'selected_option': selected,
+            'is_correct': is_correct,
+            'is_active': True
+        }
     )
 
-    # 2. Update Progress Stats
     prog, _ = UserCategoryProgress.objects.get_or_create(user=user, category=question.category)
     prog.total_answered += 1
     if is_correct:
@@ -276,7 +272,6 @@ def handle_answer(call):
     )
 
     try:
-        # Edit the message to show result (removes buttons)
         bot.edit_message_text(
             f"{call.message.text}\n\n{response}",
             call.message.chat.id,
@@ -290,7 +285,6 @@ def handle_answer(call):
             raise
 
 
-# --- 5. RESET HANDLER ---
 @bot.callback_query_handler(func=lambda call: call.data.startswith('reset:'))
 def reset_progress_handler(call):
     topic_id = int(call.data.split(':')[1])
@@ -315,7 +309,6 @@ def handle_retry_fail(call):
         user_id = call.message.chat.id
         user = TelegramUser.objects.get(telegram_id=user_id)
 
-        # 1. "Archive" the wrong answers
         updated_rows = UserAnswer.objects.filter(
             user=user,
             question__category_id=topic_id,
@@ -323,10 +316,8 @@ def handle_retry_fail(call):
             is_active=True
         ).update(is_active=False)
 
-        # 2. Give Feedback
         bot.answer_callback_query(call.id, f"Reloading {updated_rows} questions...")
 
-        # 3. Immediately fetch the first "new" question
         question = get_next_question(user, topic_id)
         if question:
             send_question_card(user_id, question)
@@ -338,11 +329,8 @@ def handle_retry_fail(call):
         bot.send_message(call.message.chat.id, "❌ Error restarting quiz.")
 
 
-# --- 6. NAVIGATION HELPERS ---
 @bot.callback_query_handler(func=lambda call: call.data == "start_menu")
 def back_to_start(call):
-    # Just call the start logic again
-    # We fake a message object
     class FakeMessage:
         def __init__(self, user_id, first_name, username):
             self.from_user = type('User', (), {'id': user_id, 'first_name': first_name, 'username': username})()
