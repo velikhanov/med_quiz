@@ -30,7 +30,7 @@ class QuestionAdmin(admin.ModelAdmin):
 @admin.register(PDFUpload)
 class PDFUploadAdmin(admin.ModelAdmin):
     list_display = ('title', 'category', 'file_completion_status', 'is_processing', 'last_processed_page', 'total_pages')
-    readonly_fields = ('total_pages', 'is_processing', 'last_processed_page', 'incomplete_question_data')
+    readonly_fields = ('current_subcategory', 'total_pages', 'is_processing', 'last_processed_page', 'incomplete_question_data')
     actions = ('process_batch_5', 'process_batch_10', 'reset_pdf_status', 'unlock_pdf_status')
 
     def has_change_permission(self, request, obj=None):
@@ -47,9 +47,11 @@ class PDFUploadAdmin(admin.ModelAdmin):
     def file_completion_status(self, obj):
         if obj and obj.last_processed_page == obj.total_pages:
             return "✅"
+
         if obj.total_pages > 0:
             percent = int((obj.last_processed_page / obj.total_pages) * 100)
             return f"⏳ {percent}%"
+
         return "⏳ 0%"
 
     def _process_batch(self, request, queryset, batch_size):
