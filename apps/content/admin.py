@@ -51,11 +51,16 @@ class PDFUploadAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         if obj and obj.is_locked():
             return False
+
         return super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
         if obj and obj.is_locked():
             return False
+
+        if obj and obj.last_processed_page > 0 and not request.user.is_superuser:
+            return False
+
         return super().has_delete_permission(request, obj)
 
     @admin.display(description="Status")
