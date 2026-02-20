@@ -14,19 +14,13 @@ def github_trigger_worker(request):
     if token != settings.GITHUB_TRIGGER_TOKEN:
         return JsonResponse({'error': 'Unauthorized'}, status=401)
 
-    # Automatically find PDFs that have pages, aren't locked, and aren't finished
-    pending_pdfs = PDFUpload.objects.filter(
+    pdf_obj = PDFUpload.objects.filter(
         total_pages__gt=0,
-        is_processing=False,
         last_processed_page__lt=F('total_pages')
-    )
+    ).order_by('id').first()
 
-    valid_ids = list(pending_pdfs.values_list('id', flat=True))
-
-    # 3. SWITCH OFF: If the queue is empty, disable the GitHub Cron!
-    if not valid_ids:
+    if not pdf_obj:
         print("🏁 Queue empty. Disabling GitHub Cron...")
-        # Run in a thread so we don't delay the HTTP response
         t_disable = threading.Thread(target=disable_cron, daemon=True)
         t_disable.start()
 
@@ -35,20 +29,28 @@ def github_trigger_worker(request):
             'processing_ids': []
         })
 
-    # 4. LOCK THE PDFs: Mark them as processing so they aren't double-processed
-    PDFUpload.objects.filter(id__in=valid_ids).update(is_processing=True)
+    if pdf_obj.is_processing:
+        print(f"⚠️ PDF {pdf_obj.id} is stuck processing. Disabling cron to prevent loops...")
+        t_disable = threading.Thread(target=disable_cron, daemon=True)
+        t_disable.start()
 
-    # 5. START WORKER: Exactly like your admin _process_batch logic
+        return JsonResponse({
+            'status': f'PDF {pdf_obj.id} stuck. Cron disabled for safety.',
+            'processing_ids': []
+        })
+
+    PDFUpload.objects.filter(id=pdf_obj.id).update(is_processing=True)
+
     batch_size = 5
     t = threading.Thread(
         target=background_worker,
-        args=(valid_ids, batch_size),
+        args=([pdf_obj.id], batch_size),
         daemon=True
     )
     t.start()
 
     return JsonResponse({
         'status': 'Worker started in background',
-        'processing_ids': valid_ids,
+        'processing_id': pdf_obj.id,
         'batch_size': batch_size
     })
