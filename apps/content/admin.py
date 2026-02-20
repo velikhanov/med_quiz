@@ -18,10 +18,10 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
-    list_display = ('subcategory', 'short_text', 'category', 'correct_option')
+    list_display = ('question_number', 'page_number', 'subcategory', 'short_text', 'category', 'correct_option')
     list_filter = ('category', 'category__test')
     search_fields = ('text',)
-    ordering = ('category', 'question_number')
+    ordering = ('page_number', 'question_number', 'id')
 
     def short_text(self, obj):
         return f"{obj.text[:50]}..."
