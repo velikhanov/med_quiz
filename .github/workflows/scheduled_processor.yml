@@ -10,4 +10,4 @@ jobs:
     steps:
       - name: Trigger Batch
         run: |
-          curl --fail "http://velikhanov.pythonanywhere.com/api/external/trigger-batch/?token=${{ secrets.TRIGGER_TOKEN }}"
+          curl -L --fail "https://velikhanov.pythonanywhere.com/api/trigger/?token=${{ secrets.TRIGGER_TOKEN }}"
