@@ -43,10 +43,8 @@ class PDFUploadAdmin(admin.ModelAdmin):
         actions = super().get_actions(request)
 
         if not request.user.is_superuser:
-            if 'process_batch_5' in actions:
-                del actions['process_batch_5']
-            if 'process_batch_10' in actions:
-                del actions['process_batch_10']
+            for action in ('process_batch_5', 'process_batch_10', 'reset_pdf_status'):
+                actions.pop(action, None)
 
         return actions
 
