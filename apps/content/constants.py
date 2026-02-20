@@ -1,3 +1,4 @@
+GITHUB_API_BASE = "https://api.github.com"
 MODEL_NAME = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 QUIZ_PROMPT = """

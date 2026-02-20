@@ -44,6 +44,7 @@ class PDFUpload(models.Model):
     last_processed_page = models.IntegerField(default=0)
 
     def save(self, *args, **kwargs):
+        is_new = self.pk is None
         if self.file and self.total_pages == 0:
             try:
                 import fitz
@@ -59,6 +60,15 @@ class PDFUpload(models.Model):
                 print(f"Error counting pages: {e}")
 
         super().save(*args, **kwargs)
+
+        if is_new and not self.is_processing:
+            import threading
+            from .github_control import enable_cron
+
+            print("Pg Up: New file detected. Enabling GitHub Cron...")
+            t = threading.Thread(target=enable_cron)
+            t.daemon = True
+            t.start()
 
     def delete(self, *args, **kwargs):
         # 1. Delete the file from disk

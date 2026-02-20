@@ -39,6 +39,17 @@ class PDFUploadAdmin(admin.ModelAdmin):
     readonly_fields = ('current_subcategory', 'total_pages', 'is_processing', 'last_processed_page', 'incomplete_question_data')
     actions = ('process_batch_5', 'process_batch_10', 'reset_pdf_status', 'unlock_pdf_status')
 
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+
+        if not request.user.is_superuser:
+            if 'process_batch_5' in actions:
+                del actions['process_batch_5']
+            if 'process_batch_10' in actions:
+                del actions['process_batch_10']
+
+        return actions
+
     def has_change_permission(self, request, obj=None):
         if obj and obj.is_locked():
             return False

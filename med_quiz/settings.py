@@ -145,3 +145,10 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
 
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
+
+# GitHub Configuration
+GITHUB_USERNAME = os.getenv('GITHUB_USERNAME')
+GITHUB_REPO = os.getenv('GITHUB_REPO')
+GITHUB_PAT = os.getenv('GITHUB_PAT')
+GITHUB_TRIGGER_TOKEN = os.getenv('GITHUB_TRIGGER_TOKEN')
+GITHUB_WORKFLOW_ID = os.getenv('GITHUB_WORKFLOW_ID')
