@@ -73,6 +73,13 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
                 if q_num and q_num in pending_explanations:
                     pending_expl = pending_explanations.pop(q_num)
 
+                correct_opt = item.get('correct_option')
+                if not correct_opt:
+                    correct_opt = '?'
+                elif len(correct_opt) > 1:
+                    # Fixes if AI accidentally returns "A)" instead of "A"
+                    correct_opt = correct_opt[0].upper()
+
                 full_explanation = f"{pending_expl}\n{expl_1} {expl_2}".strip()
 
                 questions_to_create.append(Question(
@@ -81,7 +88,7 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
                     question_number=new_buffer.get('question_number'),
                     text=full_text,
                     options=full_options,
-                    correct_option=item.get('correct_option') or new_buffer.get('correct_option'),
+                    correct_option=correct_opt,
                     explanation=full_explanation,
                     page_number=page_num
                 ))
@@ -153,15 +160,19 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10):
                     page_num + 1
                 )
 
-                with transaction.atomic():
-                    if questions_to_create:
-                        Question.objects.bulk_create(questions_to_create)
-                        total_created += count
+                try:
+                    with transaction.atomic():
+                        if questions_to_create:
+                            Question.objects.bulk_create(questions_to_create)
+                            total_created += count
+                except Exception as e:
+                    print(f"❌ Database Error saving questions on Page {page_num}: {e}")
+                    print(f"⏭️ Skipping Page {page_num} to prevent infinite loop.")
 
-                    pdf.last_processed_page = page_num + 1
-                    pdf.incomplete_question_data = buffer
-                    pdf.current_subcategory = current_subcat_state
-                    pdf.save(update_fields=['last_processed_page', 'incomplete_question_data', 'current_subcategory'])
+                pdf.last_processed_page = page_num + 1
+                pdf.incomplete_question_data = buffer
+                pdf.current_subcategory = current_subcat_state
+                pdf.save(update_fields=['last_processed_page', 'incomplete_question_data', 'current_subcategory'])
 
         except json.JSONDecodeError:
             print(f"Error decoding JSON on page {page_num}")

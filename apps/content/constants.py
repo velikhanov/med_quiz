@@ -13,7 +13,8 @@ The page has a two-column layout.
 - `question_number`: Integer.
 - `question`: Full text.
 - `options`: List of strings. Just extract the text.
-- `correct_option`: Letter only.
+- `correct_option`: Letter only (e.g., "A").
+  * **Variant Questions ("Benzeri"):** Sometimes a question is followed by text like "Bu soru... şöyle de sorulabilirdi" and a second set of options. Treat the variant as a SEPARATE question. If there is only one "Doğru cevap" printed at the very bottom, apply that SAME correct option to BOTH questions.
 - `subcategory`: The bold header explicitly above this specific question.
 - `explanation`: Text.
   * Capture the paragraph immediately following the options.
