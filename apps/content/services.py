@@ -11,6 +11,7 @@ from time import sleep
 
 from django.db import close_old_connections, transaction, connections, OperationalError
 
+from apps.content.constants import MAX_FILE_SIZE
 from apps.content.groq_client import GroqClient
 from apps.content.models import PDFUpload, Question
 
@@ -294,7 +295,7 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10) -> str:
 
 
 def background_worker(pdf_ids: list[int], batch_size: int) -> None:
-    print(f"--- 🚀 Starting Background Batch (Count: {len(pdf_ids)}) ---")
+    print(f"--- 🚀 Starting Background Batch (Count: {len(pdf_ids)}) ---", flush=True)
     connections.close_all()
 
     for pdf_id in pdf_ids:
@@ -302,36 +303,45 @@ def background_worker(pdf_ids: list[int], batch_size: int) -> None:
             # Re-fetch PDF to ensure fresh state
             close_old_connections()
             pdf = PDFUpload.objects.get(id=pdf_id)
-            print(f"▶️ Processing: {pdf.title}...")
+            print(f"▶️ Processing: {pdf.title}...", flush=True)
 
             result = process_next_batch(pdf, batch_size)
-            print(f"✅ Finished {pdf.title}: {result}")
+            print(f"✅ Finished {pdf.title}: {result}", flush=True)
+
         except PDFUpload.DoesNotExist:
-            print(f"❌ Error: PDF {pdf_id} not found.")
+            print(f"❌ Error: PDF {pdf_id} not found.", flush=True)
         except Exception as e:
-            print(f"❌ Error processing PDF {pdf_id}: {e}")
+            print(f"❌ Error processing PDF {pdf_id}: {e}", flush=True)
         finally:
             try:
                 close_old_connections()
                 # Use a fresh fetch to unlock, just in case
                 PDFUpload.objects.filter(id=pdf_id).update(is_processing=False)
-                print(f"🔓 [BG] Unlocked PDF {pdf_id}")
+                print(f"🔓 [BG] Unlocked PDF {pdf_id}", flush=True)
             except Exception as e:
-                print(f"💀 [BG] Critical Error: Could not unlock PDF {pdf_id}: {e}")
+                print(f"💀 [BG] Critical Error: Could not unlock PDF {pdf_id}: {e}", flush=True)
 
             connections.close_all()
 
-    print("--- 🏁 Batch Complete ---")
+    print("--- 🏁 Batch Complete ---", flush=True)
 
 
 def launch_detached_worker(pdf_ids: list[int], batch_size: int = 5):
     """
-    Spawns an independent OS-level process to run the PDF batch and routes logs to a file.
+    Spawns an independent OS-level process to run the PDF batch.
     """
     log_path = os.path.join(settings.BASE_DIR, 'parser_bg.log')
 
+    if os.path.exists(log_path) and os.path.getsize(log_path) > MAX_FILE_SIZE:
+        backup_path = f"{log_path}.old"
+        if os.path.exists(backup_path):
+            os.remove(backup_path)
+
+        os.rename(log_path, backup_path)
+
     manage_py_path = os.path.join(settings.BASE_DIR, "manage.py")
     id_strs = [str(pid) for pid in pdf_ids]
+
     command = ["python", manage_py_path, "process_pdf_batch"] + id_strs + ["--batch_size", str(batch_size)]
 
     with open(log_path, 'a') as log_file:

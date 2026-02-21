@@ -1,3 +1,5 @@
+MAX_FILE_SIZE = 5 * 1024 * 1024
+
 GITHUB_API_BASE = "https://api.github.com"
 MODEL_NAME = "meta-llama/llama-4-scout-17b-16e-instruct"
 
