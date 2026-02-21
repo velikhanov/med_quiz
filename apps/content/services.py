@@ -329,8 +329,10 @@ def launch_detached_worker(pdf_ids: list[int], batch_size: int = 5):
     Spawns an independent OS-level process to run the PDF batch and routes logs to a file.
     """
     log_path = os.path.join(settings.BASE_DIR, 'parser_bg.log')
+
+    manage_py_path = os.path.join(settings.BASE_DIR, "manage.py")
     id_strs = [str(pid) for pid in pdf_ids]
-    command = ["python", "manage.py", "process_pdf_batch"] + id_strs + ["--batch_size", str(batch_size)]
+    command = ["python", manage_py_path, "process_pdf_batch"] + id_strs + ["--batch_size", str(batch_size)]
 
     with open(log_path, 'a') as log_file:
         subprocess.Popen(
@@ -338,5 +340,6 @@ def launch_detached_worker(pdf_ids: list[int], batch_size: int = 5):
             stdout=log_file,
             stderr=subprocess.STDOUT,
             start_new_session=True,
-            close_fds=True
+            close_fds=True,
+            cwd=settings.BASE_DIR
         )
