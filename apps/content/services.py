@@ -42,7 +42,7 @@ def parse_and_save_questions(
         nonlocal _cached_last_db_q
         if _cached_last_db_q:
             return _cached_last_db_q
-        
+
         q = Question.objects.filter(category_id=pdf.category_id).order_by('-id').first()
         if q:
             if q.id in questions_to_update_map:
@@ -111,13 +111,13 @@ def parse_and_save_questions(
                     else:
                         # Check in DB
                         try:
-                             recent_q = Question.objects.filter(category_id=pdf.category_id, question_number=linked_q_num).order_by('-id').first()
-                             if recent_q:
-                                 questions_to_update_map[recent_q.id] = recent_q
-                                 recent_q.explanation = (recent_q.explanation or "") + f"\n\n{explanation_text}"
-                             else:
-                                 # Truly pending or mismatch
-                                 pending_explanations[linked_q_num] = (pending_explanations.get(linked_q_num, "") + f"\n\n{explanation_text}").strip()
+                            recent_q = Question.objects.filter(category_id=pdf.category_id, question_number=linked_q_num).order_by('-id').first()
+                            if recent_q:
+                                questions_to_update_map[recent_q.id] = recent_q
+                                recent_q.explanation = (recent_q.explanation or "") + f"\n\n{explanation_text}"
+                            else:
+                                # Truly pending or mismatch
+                                pending_explanations[linked_q_num] = (pending_explanations.get(linked_q_num, "") + f"\n\n{explanation_text}").strip()
                         except Exception as e:
                             print(f"Error linking explanation to DB question {linked_q_num}: {e}")
             else:
@@ -150,7 +150,7 @@ def parse_and_save_questions(
                     pending_expl = pending_explanations.pop(q_num)
 
                 full_explanation = f"{pending_expl}\n{expl_1} {expl_2}".strip()
-                
+
                 # Check if this merged result is STILL incomplete
                 if item.get('is_incomplete'):
                     new_buffer['question'] = full_text
@@ -253,13 +253,13 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10) -> str:
 
                             if questions_to_update:
                                 Question.objects.bulk_update(questions_to_update, ['explanation'])
-                            
+
                             # Save progress inside the transaction to ensure consistency
                             pdf.last_processed_page = page_num + 1
                             pdf.incomplete_question_data = buffer
                             pdf.current_subcategory = current_subcat_state
                             pdf.save(update_fields=['last_processed_page', 'incomplete_question_data', 'current_subcategory'])
-                        
+
                         # Success - exit retry loop
                         break
 
