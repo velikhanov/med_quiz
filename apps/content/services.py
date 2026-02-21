@@ -1,6 +1,7 @@
 import re
 import json
 import base64
+from typing import Any
 import fitz
 from time import sleep
 
@@ -8,6 +9,17 @@ from django.db import close_old_connections, transaction, connections
 
 from apps.content.groq_client import GroqClient
 from apps.content.models import PDFUpload, Question
+
+
+def get_correct_option(item: dict[str, Any]) -> str:
+    correct_opt = item.get('correct_option')
+    if not correct_opt:
+        correct_opt = '?'
+    elif len(correct_opt) > 1:
+        # Fixes if AI accidentally returns "A)" instead of "A"
+        correct_opt = correct_opt[0].upper()
+
+    return correct_opt
 
 
 def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, page_num):
@@ -73,13 +85,6 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
                 if q_num and q_num in pending_explanations:
                     pending_expl = pending_explanations.pop(q_num)
 
-                correct_opt = item.get('correct_option')
-                if not correct_opt:
-                    correct_opt = '?'
-                elif len(correct_opt) > 1:
-                    # Fixes if AI accidentally returns "A)" instead of "A"
-                    correct_opt = correct_opt[0].upper()
-
                 full_explanation = f"{pending_expl}\n{expl_1} {expl_2}".strip()
 
                 questions_to_create.append(Question(
@@ -88,7 +93,7 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
                     question_number=new_buffer.get('question_number'),
                     text=full_text,
                     options=full_options,
-                    correct_option=correct_opt,
+                    correct_option=get_correct_option(item),
                     explanation=full_explanation,
                     page_number=page_num
                 ))
@@ -114,7 +119,7 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
                     question_number=q_num,
                     text=item['question'],
                     options=cleaned_options,
-                    correct_option=item.get('correct_option'),
+                    correct_option=get_correct_option(item),
                     explanation=pre_filled_explanation,
                     page_number=page_num
                 ))
