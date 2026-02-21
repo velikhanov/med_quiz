@@ -1,7 +1,11 @@
+import os
 import re
 import json
 import base64
+import subprocess
+import sys
 from typing import Any
+from django.conf import settings
 import fitz
 from time import sleep
 
@@ -248,11 +252,7 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10) -> str:
                             # Parsing logic reads/writes to DB, so it must be inside the atomic block
                             # to prevent partial updates if the subsequent bulk_create or pdf.save fails.
                             buffer, count, current_subcat_state, questions_to_create, questions_to_update = parse_and_save_questions(
-                                pdf,
-                                response_json,
-                                buffer,
-                                current_subcat_state,
-                                page_num + 1
+                                pdf, response_json, buffer, current_subcat_state, page_num + 1
                             )
 
                             if questions_to_create:
@@ -322,3 +322,21 @@ def background_worker(pdf_ids: list[int], batch_size: int) -> None:
             connections.close_all()
 
     print("--- 🏁 Batch Complete ---")
+
+
+def launch_detached_worker(pdf_ids: list[int], batch_size: int = 5):
+    """
+    Spawns an independent OS-level process to run the PDF batch and routes logs to a file.
+    """
+    log_path = os.path.join(settings.BASE_DIR, 'parser_bg.log')
+    id_strs = [str(pid) for pid in pdf_ids]
+    command = [sys.executable, "manage.py", "process_pdf_batch"] + id_strs + ["--batch_size", str(batch_size)]
+
+    with open(log_path, 'a') as log_file:
+        subprocess.Popen(
+            command,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            close_fds=True
+        )

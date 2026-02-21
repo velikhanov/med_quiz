@@ -1,12 +1,10 @@
 from django.contrib import admin
 from django.contrib import messages
-import threading
+from django.http import HttpRequest
 
 from apps.content.models import Test, Category, PDFUpload, Question
+from apps.content.services import launch_detached_worker
 
-
-from django.db.models import QuerySet
-from django.http import HttpRequest
 
 @admin.register(Test)
 class TestAdmin(admin.ModelAdmin):
@@ -94,24 +92,18 @@ class PDFUploadAdmin(admin.ModelAdmin):
 
         return "⏳ 0%"
 
-    def _process_batch(self, request: HttpRequest, queryset: QuerySet[PDFUpload], batch_size: int) -> None:
-        from apps.content.services import background_worker
-
+    def _process_batch(self, request: HttpRequest, queryset, batch_size: int) -> None:
         valid_ids = list(queryset.filter(is_processing=False).values_list('id', flat=True))
         all_selected_ids = list(queryset.values_list('id', flat=True))
         busy_ids = list(set(all_selected_ids) - set(valid_ids))
 
         if valid_ids:
+            # Lock them immediately
             PDFUpload.objects.filter(id__in=valid_ids).update(is_processing=True)
 
-            t = threading.Thread(
-                target=background_worker,
-                args=(valid_ids, batch_size),
-                daemon=True
-            )
-            t.start()
+            launch_detached_worker(pdf_ids=valid_ids, batch_size=batch_size)
 
-            self.message_user(request, f"🚀 Queue started for {len(valid_ids)} PDFs (Batch {batch_size}).", level=messages.INFO)
+            self.message_user(request, f"🚀 OS Background Worker started for {len(valid_ids)} PDFs (Batch {batch_size}).", level=messages.INFO)
 
         if busy_ids:
             self.message_user(request, f"⚠️ Skipped {len(busy_ids)} busy PDFs.", level=messages.WARNING)

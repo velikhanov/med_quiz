@@ -63,13 +63,15 @@ class PDFUpload(models.Model):
         super().save(*args, **kwargs)
 
         if is_new and not self.is_processing:
-            import threading
             from .github_control import enable_cron
 
             print("Pg Up: New file detected. Enabling GitHub Cron...")
-            t = threading.Thread(target=enable_cron)
-            t.daemon = True
-            t.start()
+            try:
+                enable_cron()
+                print("✅ GitHub Cron enabled successfully.")
+            except Exception as e:
+                # Catch the error so if GitHub is down, it doesn't crash your Django Admin
+                print(f"❌ Failed to enable GitHub Cron: {e}")
 
     def delete(self, *args: Any, **kwargs: Any) -> None:
         # 1. Delete the file from disk
