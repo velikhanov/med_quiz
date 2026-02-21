@@ -227,7 +227,15 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10) -> str:
             response = groq.get_quiz_content_from_image(base64_image)
 
             if response:
-                response_json = json.loads(response)
+                # Clean up potential markdown formatting or conversational filler
+                # Find the first '[' and the last ']'
+                json_match = re.search(r'\[.*\]', response, re.DOTALL)
+                if json_match:
+                    response_cleaned = json_match.group(0)
+                else:
+                    response_cleaned = response
+
+                response_json = json.loads(response_cleaned)
 
                 # 2. Database Operations with Retry Logic
                 max_retries = 3

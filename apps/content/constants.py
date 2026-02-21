@@ -59,6 +59,10 @@ If you find a paragraph ending with or containing "Doğru cevap: [X]" that is NO
     "linked_question_number": 22
   }
 ]
+### IMPORTANT:
+- Return ONLY the raw JSON list. 
+- Do NOT use markdown formatting (no ```json ... ``` blocks).
+- Do NOT add any conversational text before or after the JSON.
 """
 
 TEMPERATURE = 0.1
