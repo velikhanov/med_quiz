@@ -24,20 +24,14 @@ def github_trigger_worker(request):
         t_disable = threading.Thread(target=disable_cron, daemon=True)
         t_disable.start()
 
-        return JsonResponse({
-            'status': 'No pending PDFs found. GitHub Cron disabled.',
-            'processing_ids': []
-        })
+        return JsonResponse({'status': 'No pending PDFs found. GitHub Cron disabled.'})
 
     if pdf_obj.is_processing:
         print(f"⚠️ PDF {pdf_obj.id} is stuck processing. Disabling cron to prevent loops...")
         t_disable = threading.Thread(target=disable_cron, daemon=True)
         t_disable.start()
 
-        return JsonResponse({
-            'status': f'PDF {pdf_obj.id} stuck. Cron disabled for safety.',
-            'processing_ids': []
-        })
+        return JsonResponse({'status': f'PDF {pdf_obj.id} stuck. Cron disabled for safety.'})
 
     PDFUpload.objects.filter(id=pdf_obj.id).update(is_processing=True)
 
@@ -52,5 +46,6 @@ def github_trigger_worker(request):
     return JsonResponse({
         'status': 'Worker started in background',
         'processing_id': pdf_obj.id,
-        'batch_size': batch_size
+        'batch_size': batch_size,
+        'progress': f"{min(pdf_obj.last_processed_page + batch_size, pdf_obj.total_pages)}/{pdf_obj.total_pages}"
     })
