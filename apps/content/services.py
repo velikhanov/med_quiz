@@ -148,8 +148,8 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10):
 
         try:
             page = doc.load_page(page_num)
-            pix = page.get_pixmap(dpi=150)
-            img_bytes = pix.tobytes("jpg")
+            pix = page.get_pixmap(dpi=300)
+            img_bytes = pix.tobytes("png")
             base64_image = base64.b64encode(img_bytes).decode('utf-8')
 
             response = groq.get_quiz_content_from_image(base64_image)

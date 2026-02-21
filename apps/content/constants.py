@@ -2,55 +2,54 @@ GITHUB_API_BASE = "https://api.github.com"
 MODEL_NAME = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 QUIZ_PROMPT = """
-You are a medical exam transcriptionist processing a page from a Turkish medical textbook.
-The page has a two-column layout.
+You are an expert medical exam transcriptionist processing a page from a Turkish medical textbook.
+The page has a complex two-column layout, containing questions, images, nested boxes, and explanations.
 
 ### CRITICAL READING STRATEGY
-1. Read the **Left Column** (Top to Bottom).
-2. Then read the **Right Column** (Top to Bottom).
-3. **Subcategory Scope:** A header title (e.g., "HEMATOPOEZ") ONLY applies to questions **below it in the SAME column**. Do not apply a Right Column header to a Left Column question.
+1. Read the **Left Column** strictly from Top to Bottom.
+2. Then read the **Right Column** strictly from Top to Bottom.
+3. **Subcategory Scope:** A header title (e.g., "HEMATOPOEZ") ONLY applies to questions below it in the SAME column.
 
-### PART 1: EXTRACTION RULES
-- `question_number`: Integer.
-- `question`: Full text.
-- `options`: List of strings. Just extract the text.
-- `correct_option`: Letter only (e.g., "A").
-  * **Variant Questions ("Benzeri"):** Sometimes a question is followed by text like "Bu soru... şöyle de sorulabilirdi" and a second set of options. Treat the variant as a SEPARATE question. If there is only one "Doğru cevap" printed at the very bottom, apply that SAME correct option to BOTH questions.
-- `subcategory`: The bold header explicitly above this specific question.
-- `explanation`: Text.
-  * Capture the paragraph immediately following the options.
-  * **FORMATTING:** Preserve lists/newlines.
+### PART 1: HANDLING COMPLEX QUESTION FORMATS (CRITICAL)
+- **Questions Split by Images (e.g., Q24):** If a question starts with text, is interrupted by a medical image/diagram, and continues below the image, you MUST combine the text before AND after the image into a single `question` string. Do not skip the introductory text above the image.
+- **Main Questions vs. Boxed Variants (e.g., Q23):** * Extract the MAIN numbered question FIRST.
+  * If you see a box containing "Bu soru, başka bir hoca tarafından şöyle de sorulabilirdi:", extract the content inside that box as a COMPLETELY SEPARATE question.
+  * NEVER let a boxed variant overwrite or replace the main numbered question above it. They must both exist in the JSON.
 
-### PART 2: ORPHANED / DISPLACED EXPLANATIONS
-Sometimes an explanation appears in the Left Column but belongs to a question in the Right Column.
-If you find a paragraph ending with "Doğru cevap: [X]" that is NOT immediately after a question:
+### PART 2: EXTRACTION RULES
+- `question_number`: Integer. (For variant/boxed questions, assign it the same integer as the main question it relates to).
+- `question`: Full text of the question prompt.
+- `options`: List of strings (e.g., ["A) Hemolitik üremik...", "B) Otoimmün..."]). 
+- `correct_option`: Letter only (e.g., "A"). Look for "Doğru cevap: X" either immediately below the options or inside the variant box.
+- `subcategory`: The bold header explicitly above this specific question. If none, output null.
+- `explanation`: The educational text paragraph explaining the answer. Preserve lists/newlines.
+
+### PART 3: ORPHANED / DISPLACED EXPLANATIONS
+Sometimes an explanation appears at the top or bottom of a column, separated from its question.
+If you find a paragraph ending with or containing "Doğru cevap: [X]" that is NOT immediately attached to a question:
   1. Set "type": "explanation_only".
   2. Extract the text.
-  3. **CRITICAL:** Look at the page. Which question number does this text belong to? (e.g., if it talks about "Kompanzasyon" and Question 2 asks about that, link it).
+  3. Contextually determine which question number it belongs to based on the medical topic.
   4. Add field: `"linked_question_number": <integer>`.
 
 ### OUTPUT FORMAT (JSON List)
 [
   {
     "type": "question",
-    "question_number": 1,
-    "subcategory": "HEMATOPOEZ",
-    "question": "...",
-    "options": [...],
-    "correct_option": "C"
-  },
-  {
-    "type": "explanation_only",
-    "linked_question_number": 2,
-    "explanation": "Dokulara oksijen sunumunu... Doğru cevap: A"
+    "question_number": 23,
+    "subcategory": "HEMATOLOJİ",
+    "question": "Kırk yaşındaki kadın hasta...",
+    "options": ["A) ...", "B) ..."],
+    "correct_option": "B"
   },
   {
     "type": "question",
-    "question_number": 2,
-    "subcategory": "ANEMİLER",
-    "question": "...",
-    "options": [...],
-    "correct_option": "A"
+    "question_number": 23,
+    "subcategory": "HEMATOLOJİ",
+    "question": "Ateş, böbrek fonksiyon bozukluğu... saptanması...",
+    "options": ["A) ...", "B) ..."],
+    "correct_option": "C",
+    "is_variant": true
   }
 ]
 """
