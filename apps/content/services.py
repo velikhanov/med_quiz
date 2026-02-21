@@ -326,7 +326,7 @@ def background_worker(pdf_ids: list[int], batch_size: int) -> None:
     print("--- 🏁 Batch Complete ---", flush=True)
 
 
-def launch_detached_worker(pdf_ids: list[int], batch_size: int = 5):
+def launch_detached_worker(pdf_ids: list[int], batch_size: int = 10):
     """
     Spawns an independent OS-level process to run the PDF batch.
     """
