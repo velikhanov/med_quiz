@@ -45,6 +45,9 @@ class PDFUploadAdmin(admin.ModelAdmin):
         if not request.user.is_superuser:
             fields += ('is_processing', 'last_processed_page')
 
+            if obj and obj.last_processed_page > 0:
+                fields += ('file',)
+
         return fields
 
     def get_actions(self, request):
@@ -57,16 +60,22 @@ class PDFUploadAdmin(admin.ModelAdmin):
         return actions
 
     def has_change_permission(self, request, obj=None):
+        if request.user.is_superuser:
+            return True
+
         if obj and obj.is_locked():
             return False
 
         return super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
+        if request.user.is_superuser:
+            return True
+
         if obj and obj.is_locked():
             return False
 
-        if obj and obj.last_processed_page > 0 and not request.user.is_superuser:
+        if obj and obj.last_processed_page > 0:
             return False
 
         return super().has_delete_permission(request, obj)
