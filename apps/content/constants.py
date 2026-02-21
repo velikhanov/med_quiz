@@ -23,6 +23,8 @@ The page has a complex two-column layout, containing questions, images, nested b
 - `correct_option`: Letter only (e.g., "A"). Look for "Doğru cevap: X" either immediately below the options or inside the variant box.
 - `subcategory`: The bold header explicitly above this specific question. If none, output null.
 - `explanation`: The educational text paragraph explaining the answer. Preserve lists/newlines.
+- `is_incomplete`: Boolean. Set to true if the question text or options are cut off at the end of the page.
+- `type`: One of "question", "explanation_only", "fragment".
 
 ### PART 3: ORPHANED / DISPLACED EXPLANATIONS
 Sometimes an explanation appears at the top or bottom of a column, separated from its question.
@@ -50,6 +52,11 @@ If you find a paragraph ending with or containing "Doğru cevap: [X]" that is NO
     "options": ["A) ...", "B) ..."],
     "correct_option": "C",
     "is_variant": true
+  },
+  {
+    "type": "explanation_only",
+    "explanation": "Bu soru şununla ilgilidir...",
+    "linked_question_number": 22
   }
 ]
 """
