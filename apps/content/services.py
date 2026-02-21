@@ -330,7 +330,7 @@ def launch_detached_worker(pdf_ids: list[int], batch_size: int = 5):
     """
     log_path = os.path.join(settings.BASE_DIR, 'parser_bg.log')
     id_strs = [str(pid) for pid in pdf_ids]
-    command = [sys.executable, "manage.py", "process_pdf_batch"] + id_strs + ["--batch_size", str(batch_size)]
+    command = ["python", "manage.py", "process_pdf_batch"] + id_strs + ["--batch_size", str(batch_size)]
 
     with open(log_path, 'a') as log_file:
         subprocess.Popen(
