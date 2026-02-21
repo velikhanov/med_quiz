@@ -1,5 +1,5 @@
 import threading
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
 from django.db.models import F
@@ -9,7 +9,7 @@ from .github_control import disable_cron
 
 
 @csrf_exempt
-def github_trigger_worker(request):
+def github_trigger_worker(request: HttpRequest) -> JsonResponse:
     token = request.GET.get('token')
     if token != settings.GITHUB_TRIGGER_TOKEN:
         return JsonResponse({'error': 'Unauthorized'}, status=401)

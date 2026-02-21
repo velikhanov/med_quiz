@@ -22,7 +22,13 @@ def get_correct_option(item: dict[str, Any]) -> str:
     return correct_opt
 
 
-def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, page_num):
+def parse_and_save_questions(
+    pdf: PDFUpload,
+    response_json: list[dict[str, Any]],
+    buffer: dict[str, Any] | None,
+    current_subcat_state: str | None,
+    page_num: int
+) -> tuple[dict[str, Any] | None, int, str | None, list[Question]]:
     questions_to_create = []
     new_buffer = buffer
     active_subcat = current_subcat_state
@@ -40,13 +46,37 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
         cleaned_options = []
         if raw_options:
             for idx, opt in enumerate(raw_options):
-                opt = str(opt).strip()
+                opt = opt.strip()
                 opt_clean = re.sub(r'^([A-Za-z0-9]+[\.\)\-]\s*)', '', opt)
                 cleaned_options.append(f"{chr(65+idx)}) {opt_clean}")
 
         item_type = item.get('type')
+        item_text = item.get('question', '').strip()
+        text_lower = item_text.lower()
 
-        if item_type == 'explanation_only':
+        # Define the condition for skipping/merging
+        is_box_variant = (
+            "şöyle de sorulabilirdi" in text_lower or
+            "bu soru" in text_lower or
+            (item_type == 'question' and not raw_options and not item.get('is_incomplete'))
+        )
+
+        # 1. Catch boxes and optionless questions first
+        if is_box_variant:
+            box_content = item_text
+            if item.get('explanation'):
+                box_content += f"\n\n{item['explanation']}"
+            if new_buffer:
+                new_buffer['explanation'] = (new_buffer.get('explanation', '') + f"\n\n[Alternatif Soru/Kutu]:\n{box_content}").strip()
+            elif questions_to_create:
+                questions_to_create[-1].explanation = (questions_to_create[-1].explanation or "") + f"\n\n[Alternatif Soru/Kutu]:\n{box_content}"
+            else:
+                last_db_q = Question.objects.filter(category_id=pdf.category_id).order_by('-id').first()
+                if last_db_q:
+                    last_db_q.explanation = (last_db_q.explanation or "") + f"\n\n[Alternatif Soru/Kutu]:\n{box_content}"
+                    last_db_q.save(update_fields=['explanation'])
+        # 2. Handle normal explanations
+        elif item_type == 'explanation_only':
             explanation_text = item.get('explanation', '')
             linked_q_num = item.get('linked_question_number')
 
@@ -66,7 +96,7 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
                     if last_db_q:
                         last_db_q.explanation = (last_db_q.explanation or "") + f"\n\n{explanation_text}"
                         last_db_q.save(update_fields=['explanation'])
-
+        # 3. Handle fragments/continuations
         elif item_type == 'fragment' or item.get('is_continuation'):
             if new_buffer:
                 text_part_1 = new_buffer.get('question', '')
@@ -98,7 +128,7 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
                     page_number=page_num
                 ))
                 new_buffer = None
-
+        # 4. Handle complete questions
         elif item_type == 'question':
             q_num = item.get('question_number')
             pre_filled_explanation = item.get('explanation', '')
@@ -127,7 +157,7 @@ def parse_and_save_questions(pdf, response_json, buffer, current_subcat_state, p
     return new_buffer, len(questions_to_create), active_subcat, questions_to_create
 
 
-def process_next_batch(pdf: PDFUpload, batch_size: int = 10):
+def process_next_batch(pdf: PDFUpload, batch_size: int = 10) -> str:
     buffer = pdf.incomplete_question_data
     current_subcat_state = pdf.current_subcategory
 

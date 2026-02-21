@@ -1,3 +1,4 @@
+from typing import Any
 from django.db import models
 
 
@@ -5,7 +6,7 @@ class Test(models.Model):
     """Level 1: The Main Book (e.g., 'DAHİLİYE', 'PEDİATRİ')"""
     name = models.CharField(max_length=255, unique=True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 
@@ -18,7 +19,7 @@ class Category(models.Model):
         unique_together = ('test', 'name')
         verbose_name_plural = "Categories"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.name} ({self.test.name})"
 
 
@@ -43,7 +44,7 @@ class PDFUpload(models.Model):
     total_pages = models.IntegerField(default=0)
     last_processed_page = models.IntegerField(default=0)
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         is_new = self.pk is None
         if self.file and self.total_pages == 0:
             try:
@@ -70,7 +71,7 @@ class PDFUpload(models.Model):
             t.daemon = True
             t.start()
 
-    def delete(self, *args, **kwargs):
+    def delete(self, *args: Any, **kwargs: Any) -> None:
         # 1. Delete the file from disk
         if self.file:
             import os
@@ -91,7 +92,7 @@ class PDFUpload(models.Model):
         is_finished = (self.total_pages > 0 and self.last_processed_page >= self.total_pages)
         return self.is_processing or is_finished
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.title
 
 
@@ -115,5 +116,5 @@ class Question(models.Model):
             models.Index(fields=['category', 'page_number', 'question_number', 'id']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.text[:50]}..."

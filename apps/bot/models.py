@@ -9,7 +9,7 @@ class TelegramUser(models.Model):
     first_name = models.CharField(max_length=255, null=True, blank=True)
     joined_at = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.first_name or 'User'} ({self.telegram_id})"
 
 
@@ -25,7 +25,7 @@ class UserCategoryProgress(models.Model):
     class Meta:
         unique_together = ('user', 'category')
 
-    def reset_progress(self):
+    def reset_progress(self) -> None:
         """Wipes data for this category"""
         self.correct_count = 0
         self.total_answered = 0
@@ -34,7 +34,7 @@ class UserCategoryProgress(models.Model):
         # Delete detailed logs
         UserAnswer.objects.filter(user=self.user, question__category=self.category).delete()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user} - {self.category}"
 
 
@@ -55,5 +55,5 @@ class UserAnswer(models.Model):
             models.Index(fields=['user', 'is_active']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user} - Q{self.question.id}"

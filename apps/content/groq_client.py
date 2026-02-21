@@ -9,7 +9,7 @@ class GroqClient:
     def __init__(self):
         self.client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-    def get_quiz_content_from_image(self, base64_image: str):
+    def get_quiz_content_from_image(self, base64_image: str) -> str | None:
         completion = self.client.chat.completions.create(
             model=MODEL_NAME,
             messages=[

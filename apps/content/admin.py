@@ -5,6 +5,9 @@ import threading
 from apps.content.models import Test, Category, PDFUpload, Question
 
 
+from django.db.models import QuerySet
+from django.http import HttpRequest
+
 @admin.register(Test)
 class TestAdmin(admin.ModelAdmin):
     list_display = ('name',)
@@ -24,12 +27,12 @@ class QuestionAdmin(admin.ModelAdmin):
     ordering = ('-page_number', '-question_number', '-id')
 
     @admin.display(description='Question (Page)', ordering='-question_number')
-    def question_with_page(self, obj):
+    def question_with_page(self, obj: Question) -> str:
         q_num = obj.question_number if obj.question_number is not None else '?'
         p_num = obj.page_number if obj.page_number is not None else '?'
         return f"{q_num} ({p_num})"
 
-    def short_text(self, obj):
+    def short_text(self, obj: Question) -> str:
         return f"{obj.text[:50]}..."
 
 
@@ -81,7 +84,7 @@ class PDFUploadAdmin(admin.ModelAdmin):
         return super().has_delete_permission(request, obj)
 
     @admin.display(description="Status")
-    def file_completion_status(self, obj):
+    def file_completion_status(self, obj: PDFUpload) -> str:
         if obj and obj.last_processed_page == obj.total_pages:
             return "✅"
 
@@ -91,7 +94,7 @@ class PDFUploadAdmin(admin.ModelAdmin):
 
         return "⏳ 0%"
 
-    def _process_batch(self, request, queryset, batch_size):
+    def _process_batch(self, request: HttpRequest, queryset: QuerySet[PDFUpload], batch_size: int) -> None:
         from apps.content.services import background_worker
 
         valid_ids = list(queryset.filter(is_processing=False).values_list('id', flat=True))

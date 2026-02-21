@@ -168,7 +168,7 @@ def handle_resume_retry(call: CallbackQuery) -> None:
         bot.send_message(user_id, "🎉 No questions left!")
 
 
-def send_result_screen(user_id, category, correct, wrong, total):
+def send_result_screen(user_id: int, category: Category, correct: int, wrong: int, total: int) -> None:
     text = (
         f"🏁 **Category Finished!**\n\n"
         f"✅ Correct: {correct}\n"
