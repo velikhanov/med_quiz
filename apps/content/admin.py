@@ -22,9 +22,9 @@ class QuestionAdmin(admin.ModelAdmin):
     list_display = ('question_with_page', 'subcategory', 'short_text', 'category', 'correct_option')
     list_filter = ('category', 'category__test', 'subcategory')
     search_fields = ('text', 'subcategory', 'question_number')
-    ordering = ('-page_number', 'id')
+    ordering = ('-page_number', '-question_number', '-id')
 
-    @admin.display(description='Question (Page)', ordering=('-page_number', 'id'))
+    @admin.display(description='Question (Page)', ordering='-page_number')
     def question_with_page(self, obj: Question) -> str:
         q_num = obj.question_number if obj.question_number is not None else '?'
         p_num = obj.page_number if obj.page_number is not None else '?'
