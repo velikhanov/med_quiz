@@ -90,7 +90,7 @@ def parse_and_save_questions(
             if item.get('explanation'):
                 box_content += f"\n\n{item['explanation']}"
             if new_buffer:
-                new_buffer['explanation'] = (new_buffer.get('explanation', '') + f"\n\n[Alternatif Soru/Kutu]:\n{box_content}").strip()
+                new_buffer['explanation'] = ((new_buffer.get('explanation') or '') + f"\n\n[Alternatif Soru/Kutu]:\n{box_content}").strip()
             elif questions_to_create:
                 questions_to_create[-1].explanation = (questions_to_create[-1].explanation or "") + f"\n\n[Alternatif Soru/Kutu]:\n{box_content}"
             else:
@@ -100,7 +100,7 @@ def parse_and_save_questions(
                     # No save here, modified object is in questions_to_update_map
         # 2. Handle normal explanations
         elif item_type == 'explanation_only':
-            explanation_text = item.get('explanation', '')
+            explanation_text = item.get('explanation') or ''
             linked_q_num = item.get('linked_question_number')
 
             if linked_q_num:
@@ -127,9 +127,9 @@ def parse_and_save_questions(
                             print(f"Error linking explanation to DB question {linked_q_num}: {e}")
             else:
                 if new_buffer:
-                    new_buffer['explanation'] = (new_buffer.get('explanation', '') + f"\n\n{explanation_text}").strip()
+                    new_buffer['explanation'] = ((new_buffer.get('explanation') or '') + f"\n\n{explanation_text}").strip()
                 elif questions_to_create:
-                    questions_to_create[-1].explanation += f"\n\n{explanation_text}"
+                    questions_to_create[-1].explanation = (questions_to_create[-1].explanation or "") + f"\n\n{explanation_text}"
                 else:
                     last_db_q = get_last_db_question()
                     if last_db_q:
@@ -146,8 +146,8 @@ def parse_and_save_questions(
                 opts_2 = cleaned_options
                 full_options = opts_1 + opts_2
 
-                expl_1 = new_buffer.get('explanation', '')
-                expl_2 = item.get('explanation', '')
+                expl_1 = new_buffer.get('explanation') or ''
+                expl_2 = item.get('explanation') or ''
 
                 pending_expl = ""
                 q_num = new_buffer.get('question_number')
@@ -177,7 +177,7 @@ def parse_and_save_questions(
         # 4. Handle complete questions
         elif item_type == 'question':
             q_num = item.get('question_number')
-            pre_filled_explanation = item.get('explanation', '')
+            pre_filled_explanation = item.get('explanation') or ''
 
             if q_num and q_num in pending_explanations:
                 orphan_text = pending_explanations.pop(q_num)
