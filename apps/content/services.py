@@ -184,6 +184,8 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10) -> str:
 
             response = groq.get_quiz_content_from_image(base64_image)
 
+            close_old_connections()
+
             if response:
                 response_json = json.loads(response)
 
@@ -214,8 +216,7 @@ def process_next_batch(pdf: PDFUpload, batch_size: int = 10) -> str:
         except Exception as e:
             print(f"Error processing page {page_num}: {e}")
 
-        close_old_connections()
-        sleep(1)
+        sleep(3)
 
     return f"Processed pages {start_page} to {pdf.last_processed_page}. Added {total_created} questions."
 

@@ -18,6 +18,7 @@ from django.conf import settings
 from django.contrib import admin
 from django.urls import path, include
 from django.conf.urls.static import static
+from django.views.generic import TemplateView
 from django.views.generic.base import RedirectView
 
 from apps.content.api import github_trigger_worker
@@ -32,6 +33,7 @@ urlpatterns = [
     path('favicon.ico', RedirectView.as_view(url='/static/favicon.ico', permanent=True)),
     path('apple-touch-icon.png', RedirectView.as_view(url='/static/favicon.ico', permanent=True)),
     path('apple-touch-icon-precomposed.png', RedirectView.as_view(url='/static/favicon.ico', permanent=True)),
+    path('robots.txt', TemplateView.as_view(template_name="robots.txt", content_type="text/plain")),
 ]
 
 if settings.DEBUG:
