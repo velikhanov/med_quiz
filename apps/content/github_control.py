@@ -9,7 +9,7 @@ def set_workflow_state(state: str) -> bool:
     State must be 'enable' or 'disable'
     """
     # Lazy import to avoid circular dependency with models.py
-    from apps.content.models import SystemConfig
+    from apps.core.models import SystemConfig
 
     config = SystemConfig.get_solo()
     should_be_active = (state == 'enable')

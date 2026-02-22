@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     # Custom apps
     'apps.bot',
     'apps.content',
+    'apps.core',
 ]
 
 MIDDLEWARE = [

@@ -2,42 +2,8 @@ from django.contrib import admin
 from django.contrib import messages
 from django.http import HttpRequest
 
-from apps.content.models import Test, Category, PDFUpload, Question, SystemConfig
+from apps.content.models import Test, Category, PDFUpload, Question
 from apps.content.services import launch_detached_worker
-from apps.content.github_control import enable_cron, disable_cron
-
-
-@admin.register(SystemConfig)
-class SystemConfigAdmin(admin.ModelAdmin):
-    list_display = ('__str__', 'is_cron_active')
-    readonly_fields = ('is_cron_active',)
-    actions = ('manual_enable_cron', 'manual_disable_cron')
-
-    def has_add_permission(self, request):
-        return SystemConfig.objects.count() == 0
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-    @admin.action(description="🟢 Enable GitHub Cron")
-    def manual_enable_cron(self, request, queryset):
-        # Force update DB state to ensure API call happens if out of sync
-        queryset.update(is_cron_active=False)
-        
-        if enable_cron():
-            self.message_user(request, "GitHub Cron Enabled.", level=messages.SUCCESS)
-        else:
-            self.message_user(request, "Failed to enable GitHub Cron.", level=messages.ERROR)
-
-    @admin.action(description="🔴 Disable GitHub Cron")
-    def manual_disable_cron(self, request, queryset):
-        # Force update DB state to ensure API call happens if out of sync
-        queryset.update(is_cron_active=True)
-        
-        if disable_cron():
-            self.message_user(request, "GitHub Cron Disabled.", level=messages.SUCCESS)
-        else:
-            self.message_user(request, "Failed to disable GitHub Cron.", level=messages.ERROR)
 
 
 @admin.register(Test)
