@@ -222,13 +222,20 @@ class QuestionParser:
             text_lower = item_text.lower()
 
             # Define the condition for skipping/merging
+            # Treat as box variant ONLY if it lacks a question number OR explicitly has box keywords
             is_box_variant = (
                 "şöyle de sorulabilirdi" in text_lower or
                 "bu soru" in text_lower or
-                (item_type == 'question' and not item.get('options') and not item.get('is_incomplete'))
+                (
+                    item_type == 'question' 
+                    and not item.get('options') 
+                    and not item.get('is_incomplete')
+                    and not item.get('question_number')  # Safety: If it has a number, it's a real question
+                )
             )
 
             if is_box_variant:
+                print(f"📦 Merging Box Variant (Page {page_num}): {item_text[:50]}...")
                 self.handle_box_variant(item_text, item.get('explanation'))
             elif item_type == 'explanation_only':
                 self.handle_explanation_only(item)
@@ -236,6 +243,8 @@ class QuestionParser:
                 self.handle_fragment(item, cleaned_options, current_item_subcategory, page_num)
             elif item_type == 'question':
                 self.handle_question(item, cleaned_options, current_item_subcategory, page_num)
+            else:
+                print(f"⚠️ Unhandled Item Type '{item_type}' on Page {page_num}: {item_text[:50]}...")
 
         return self.new_buffer, len(self.questions_to_create), self.active_subcat, self.questions_to_create, list(self.questions_to_update_map.values())
 
