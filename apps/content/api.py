@@ -34,7 +34,7 @@ def github_trigger_worker(request: HttpRequest) -> JsonResponse:
     # Lock the PDF
     PDFUpload.objects.filter(id=pdf_obj.id).update(is_processing=True)
 
-    batch_size = 5
+    batch_size = 10
     launch_detached_worker(pdf_ids=[pdf_obj.id], batch_size=batch_size)
 
     return JsonResponse({
