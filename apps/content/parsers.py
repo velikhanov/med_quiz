@@ -50,6 +50,7 @@ class QuestionParser:
         return cleaned_options
 
     def handle_box_variant(self, item_text: str, item_explanation: str | None) -> None:
+        print(f"📦 Processing Box Variant: {item_text[:30]}...")
         box_content = item_text
         if item_explanation:
             box_content += f"\n\n{item_explanation}"
@@ -114,6 +115,7 @@ class QuestionParser:
                     last_db_q.explanation = (last_db_q.explanation or "") + f"\n\n{explanation_text}"
 
     def handle_fragment(self, item: dict[str, Any], cleaned_options: list[str], current_item_subcategory: str | None, page_num: int) -> None:
+        print(f"🧩 Processing Fragment on Page {page_num}")
         # It's a continuation if we have a buffer OR if explicitly marked
         if self.new_buffer:
             text_part_1 = self.new_buffer.get('question', '')
@@ -141,6 +143,7 @@ class QuestionParser:
                 self.new_buffer['explanation'] = full_explanation
                 # Keep waiting
             else:
+                print(f"✅ Creating Question from Fragment (Page {page_num})")
                 self.questions_to_create.append(Question(
                     category_id=self.pdf.category_id,
                     subcategory=self.new_buffer.get('subcategory') or current_item_subcategory,
@@ -161,6 +164,7 @@ class QuestionParser:
                 target_q = self.get_last_db_question()
 
             if target_q:
+                print(f"🔗 Appending Fragment to Question {target_q.question_number} (ID: {getattr(target_q, 'id', 'New')})")
                 text_part = (item.get('question') or '').strip()
                 expl_part = (item.get('explanation') or '').strip()
 
@@ -193,7 +197,9 @@ class QuestionParser:
             item['options'] = cleaned_options
             item['explanation'] = pre_filled_explanation
             self.new_buffer = item
+            print(f"🔄 Buffering Incomplete Question {q_num} (Page {page_num})")
         else:
+            print(f"✅ Creating Question {q_num} (Page {page_num})")
             self.questions_to_create.append(Question(
                 category_id=self.pdf.category_id,
                 subcategory=current_item_subcategory,
@@ -234,14 +240,29 @@ class QuestionParser:
                 )
             )
 
+            # Determine if this item is a fragment/continuation
+            item_q_num = item.get('question_number')
+            is_fragment = False
+
+            # Case 1: Explicit fragment/continuation without a new number
+            if (item_type == 'fragment' or item.get('is_continuation')) and not item_q_num:
+                is_fragment = True
+            # Case 2: Implicit continuation (buffer exists and no new number to interrupt it)
+            elif self.new_buffer and not item_q_num:
+                is_fragment = True
+            # Case 3: Explicit continuation matching the buffer's number
+            elif self.new_buffer and item_q_num and item_q_num == self.new_buffer.get('question_number'):
+                is_fragment = True
+
             if is_box_variant:
                 print(f"📦 Merging Box Variant (Page {page_num}): {item_text[:50]}...")
                 self.handle_box_variant(item_text, item.get('explanation'))
             elif item_type == 'explanation_only':
                 self.handle_explanation_only(item)
-            elif item_type == 'fragment' or item.get('is_continuation') or (self.new_buffer and not item.get('question_number')):
+            elif is_fragment:
                 self.handle_fragment(item, cleaned_options, current_item_subcategory, page_num)
-            elif item_type == 'question':
+            elif item_type == 'question' or item_q_num:
+                # If it has a question number, force it to be treated as a question (even if type was 'fragment' but mismatched buffer)
                 self.handle_question(item, cleaned_options, current_item_subcategory, page_num)
             else:
                 print(f"⚠️ Unhandled Item Type '{item_type}' on Page {page_num}: {item_text[:50]}...")
