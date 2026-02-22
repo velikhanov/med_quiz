@@ -36,6 +36,11 @@ If you find a paragraph ending with or containing "Doğru cevap: [X]" that is NO
   3. Contextually determine which question number it belongs to based on the medical topic.
   4. Add field: `"linked_question_number": <integer>`.
 
+### PART 4: DISTINGUISHING QUESTIONS FROM INFO LISTS
+- **Info Lists:** Some pages contain numbered lists of facts (e.g., "1. Tüm hemolitik...", "2. Retikülosit...") that are NOT questions.
+- **Rule:** A `type: "question"` MUST have multiple-choice `options` (e.g., A, B, C, D, E) OR a `correct_option`.
+- If you encounter a numbered list without options/answers, do NOT label it as a "question". Instead, treat it as `type: "explanation_only"` or include it in the previous question's explanation.
+
 ### OUTPUT FORMAT (JSON List)
 [
   {

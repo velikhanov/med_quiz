@@ -221,22 +221,33 @@ class QuestionParser:
                 self.active_subcat = item['subcategory'].strip().capitalize()
             current_item_subcategory = item.get('subcategory') or self.active_subcat
 
-            cleaned_options = self.clean_options(item.get('options', []))
-
             item_type = item.get('type')
             item_text = item.get('question', '').strip()
             text_lower = item_text.lower()
+            item_q_num = item.get('question_number')
 
             # Define the condition for skipping/merging
             # Treat as box variant ONLY if it lacks a question number OR explicitly has box keywords
+            
+            # Check if this item is a continuation of the buffer
+            is_continuing_buffer = bool(self.new_buffer and item_q_num and str(item_q_num) == str(self.new_buffer.get('question_number')))
+
+            cleaned_options = self.clean_options(item.get('options', []))
+            has_options = len(cleaned_options) > 0
+            
+            # Check for correct option (safely)
+            raw_correct = item.get('correct_option')
+            has_correct = bool(raw_correct and len(str(raw_correct).strip()) >= 1 and str(raw_correct).strip() != '?')
+            
+            is_valid_question = has_options or has_correct
+
             is_box_variant = (
                 "şöyle de sorulabilirdi" in text_lower or
                 "bu soru" in text_lower or
                 (
-                    item_type == 'question' 
-                    and not item.get('options') 
+                    not is_valid_question
                     and not item.get('is_incomplete')
-                    and not item.get('question_number')  # Safety: If it has a number, it's a real question
+                    and not is_continuing_buffer
                 )
             )
 

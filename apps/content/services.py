@@ -15,7 +15,7 @@ from apps.content.models import PDFUpload, Question
 from apps.content.parsers import parse_and_save_questions
 
 
-def process_next_batch(pdf: PDFUpload, batch_size: int = 10) -> str:
+def process_next_batch(pdf: PDFUpload, batch_size: int) -> str:
     buffer = pdf.incomplete_question_data
     current_subcat_state = pdf.current_subcategory
 
