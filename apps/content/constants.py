@@ -21,7 +21,7 @@ The page has a complex two-column layout, containing questions, images, nested b
 ### PART 2: EXTRACTION RULES
 - `question_number`: Integer. (For variant/boxed questions, assign it the same integer as the main question it relates to).
 - `question`: Full text of the question prompt.
-- `options`: List of strings (e.g., ["A) Hemolitik üremik...", "B) Otoimmün..."]). 
+- `options`: List of strings (e.g., ["A) Hemolitik üremik...", "B) Otoimmün..."]).
 - `correct_option`: Letter only (e.g., "A"). Look for "Doğru cevap: X" either immediately below the options or inside the variant box.
 - `subcategory`: The bold header explicitly above this specific question. If none, output null.
 - `explanation`: The educational text paragraph explaining the answer. Preserve lists/newlines.
@@ -67,7 +67,7 @@ If you find a paragraph ending with or containing "Doğru cevap: [X]" that is NO
   }
 ]
 ### IMPORTANT:
-- Return ONLY the raw JSON list. 
+- Return ONLY the raw JSON list.
 - Do NOT use markdown formatting (no ```json ... ``` blocks).
 - Do NOT add any conversational text before or after the JSON.
 """
