@@ -30,11 +30,6 @@ class QuestionParser:
             return self._cached_last_db_q
 
         qs = Question.objects.filter(category_id=self.pdf.category_id)
-
-        # Safety: Restrict to recent pages
-        if self.page_num > 0:
-            qs = qs.filter(page_number__gte=max(1, self.page_num - 5))
-
         q = qs.order_by('-id').first()
 
         if q:
@@ -89,10 +84,6 @@ class QuestionParser:
                             category_id=self.pdf.category_id, 
                             question_number=linked_q_num
                         )
-
-                        # Filter 1: Proximity (last 5 pages) to avoid linking to previous chapters
-                        if self.page_num > 0:
-                            qs = qs.filter(page_number__gte=max(1, self.page_num - 5))
 
                         recent_q = None
 
