@@ -30,7 +30,7 @@ class UserCategoryProgress(models.Model):
         self.correct_count = 0
         self.total_answered = 0
         self.is_completed = False
-        self.save()
+        self.save(update_fields=['correct_count', 'total_answered', 'is_completed'])
         # Delete detailed logs
         UserAnswer.objects.filter(user=self.user, question__category=self.category).delete()
 

@@ -284,7 +284,8 @@ def handle_answer(call: CallbackQuery) -> None:
     prog.total_answered += 1
     if is_correct:
         prog.correct_count += 1
-    prog.save()
+
+    prog.save(update_fields=['total_answered', 'correct_count'])
 
     site_url = getattr(settings, 'SITE_URL', 'http://127.0.0.1:8000')
     pdf_upload = question.category.pdfupload_set.first()
