@@ -14,7 +14,7 @@ class SystemConfigAdmin(admin.ModelAdmin):
     actions = ('manual_enable_cron', 'manual_disable_cron')
 
     def has_add_permission(self, request):
-        return False
+        return SystemConfig.objects.count() == 0
 
     def has_delete_permission(self, request, obj=None):
         return False

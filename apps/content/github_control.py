@@ -46,5 +46,5 @@ def enable_cron() -> bool:
     return set_workflow_state("enable")
 
 
-def disable_cron() -> bool  :
+def disable_cron() -> bool:
     return set_workflow_state("disable")
