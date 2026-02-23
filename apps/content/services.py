@@ -73,7 +73,7 @@ def process_next_batch(pdf: PDFUpload, batch_size: int) -> str:
                                 total_created += count
 
                             if questions_to_update:
-                                Question.objects.bulk_update(questions_to_update, ['explanation'])
+                                Question.objects.bulk_update(questions_to_update, ['explanation', 'text', 'options', 'correct_option'])
 
                             # Save progress inside the transaction to ensure consistency
                             pdf.last_processed_page = page_num + 1

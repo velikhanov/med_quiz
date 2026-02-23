@@ -180,6 +180,11 @@ class QuestionParser:
                 if expl_part:
                     target_q.explanation = (target_q.explanation or "") + "\n" + expl_part
 
+                # Update correct_option if present in fragment
+                correct_opt = get_correct_option(item)
+                if correct_opt and correct_opt != '?':
+                    target_q.correct_option = correct_opt
+
                 # If we modified a DB question, ensure it's in the update map
                 if target_q not in self.questions_to_create and hasattr(target_q, 'id'):
                     self.questions_to_update_map[target_q.id] = target_q
