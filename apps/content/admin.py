@@ -8,26 +8,26 @@ from apps.content.services import launch_detached_worker
 
 @admin.register(Test)
 class TestAdmin(admin.ModelAdmin):
-    list_display = ('name',)
+    list_display = ("name",)
 
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'test')
-    list_filter = ('test',)
+    list_display = ("name", "test")
+    list_filter = ("test",)
 
 
 @admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
-    list_display = ('question_with_page', 'subcategory', 'short_text', 'category', 'correct_option')
-    list_filter = ('category', 'category__test', 'subcategory')
-    search_fields = ('text', 'subcategory', 'question_number')
-    ordering = ('-page_number', '-question_number', '-id')
+    list_display = ("question_with_page", "subcategory", "short_text", "category", "correct_option")
+    list_filter = ("category", "category__test", "subcategory")
+    search_fields = ("text", "subcategory", "question_number")
+    ordering = ("-page_number", "-question_number", "-id")
 
-    @admin.display(description='Question (Page)', ordering='-page_number')
+    @admin.display(description="Question (Page)", ordering="-page_number")
     def question_with_page(self, obj: Question) -> str:
-        q_num = obj.question_number if obj.question_number is not None else '?'
-        p_num = obj.page_number if obj.page_number is not None else '?'
+        q_num = obj.question_number if obj.question_number is not None else "?"
+        p_num = obj.page_number if obj.page_number is not None else "?"
         return f"{q_num} ({p_num})"
 
     def short_text(self, obj: Question) -> str:
@@ -36,18 +36,18 @@ class QuestionAdmin(admin.ModelAdmin):
 
 @admin.register(PDFUpload)
 class PDFUploadAdmin(admin.ModelAdmin):
-    list_display = ('title', 'category', 'file_completion_status', 'is_processing', 'last_processed_page', 'total_pages')
-    readonly_fields = ('current_subcategory', 'total_pages', 'incomplete_question_data')
-    actions = ('process_batch_5', 'process_batch_10', 'reset_pdf_status')
+    list_display = ("title", "category", "file_completion_status", "is_processing", "last_processed_page", "total_pages")
+    readonly_fields = ("parser_state", "total_pages")
+    actions = ("process_batch_5", "process_batch_10", "reset_pdf_status")
 
     def get_readonly_fields(self, request, obj=None):
         fields = super().get_readonly_fields(request, obj)
 
         if not request.user.is_superuser:
-            fields += ('is_processing', 'last_processed_page')
+            fields += ("is_processing", "last_processed_page")
 
             if obj and obj.last_processed_page > 0:
-                fields += ('file',)
+                fields += ("file",)
 
         return fields
 
@@ -55,7 +55,7 @@ class PDFUploadAdmin(admin.ModelAdmin):
         actions = super().get_actions(request)
 
         if not request.user.is_superuser:
-            for action in ('process_batch_5', 'process_batch_10', 'reset_pdf_status'):
+            for action in ("process_batch_5", "process_batch_10", "reset_pdf_status"):
                 actions.pop(action, None)
 
         return actions
@@ -93,8 +93,8 @@ class PDFUploadAdmin(admin.ModelAdmin):
         return "⏳ 0%"
 
     def _process_batch(self, request: HttpRequest, queryset, batch_size: int) -> None:
-        valid_ids = list(queryset.filter(is_processing=False).values_list('id', flat=True))
-        all_selected_ids = list(queryset.values_list('id', flat=True))
+        valid_ids = list(queryset.filter(is_processing=False).values_list("id", flat=True))
+        all_selected_ids = list(queryset.values_list("id", flat=True))
         busy_ids = list(set(all_selected_ids) - set(valid_ids))
 
         if valid_ids:
@@ -118,20 +118,20 @@ class PDFUploadAdmin(admin.ModelAdmin):
 
     @admin.action(description="🔥 Reset Status & Delete Questions")
     def reset_pdf_status(self, request, queryset):
-        valid_ids = list(queryset.filter(is_processing=False).values_list('id', flat=True))
-        all_selected_ids = list(queryset.values_list('id', flat=True))
+        valid_ids = list(queryset.filter(is_processing=False).values_list("id", flat=True))
+        all_selected_ids = list(queryset.values_list("id", flat=True))
         busy_ids = list(set(all_selected_ids) - set(valid_ids))
 
         if valid_ids:
             valid_queryset = queryset.filter(id__in=valid_ids)
-            category_ids = valid_queryset.values_list('category_id', flat=True)
+            category_ids = valid_queryset.values_list("category_id", flat=True)
 
             deleted_count, _ = Question.objects.filter(category_id__in=category_ids).delete()
 
             valid_queryset.update(
                 last_processed_page=0,
                 is_processing=False,
-                incomplete_question_data=None
+                parser_state={}
             )
 
             self.message_user(

@@ -23,14 +23,14 @@ class UserCategoryProgress(models.Model):
     is_completed = models.BooleanField(default=False)
 
     class Meta:
-        unique_together = ('user', 'category')
+        unique_together = ("user", "category")
 
     def reset_progress(self) -> None:
         """Wipes data for this category"""
         self.correct_count = 0
         self.total_answered = 0
         self.is_completed = False
-        self.save(update_fields=['correct_count', 'total_answered', 'is_completed'])
+        self.save(update_fields=["correct_count", "total_answered", "is_completed"])
         # Delete detailed logs
         UserAnswer.objects.filter(user=self.user, question__category=self.category).delete()
 
@@ -40,7 +40,7 @@ class UserCategoryProgress(models.Model):
 
 class UserAnswer(models.Model):
     """Tracks every single click (History Log)"""
-    user = models.ForeignKey(TelegramUser, on_delete=models.CASCADE, related_name='attempts')
+    user = models.ForeignKey(TelegramUser, on_delete=models.CASCADE, related_name="attempts")
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
 
     selected_option = models.CharField(max_length=1)
@@ -49,10 +49,10 @@ class UserAnswer(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'question')  # One answer per question
+        unique_together = ("user", "question")  # One answer per question
         indexes = [
-            models.Index(fields=['user', 'is_correct']),
-            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=["user", "is_correct"]),
+            models.Index(fields=["user", "is_active"]),
         ]
 
     def __str__(self) -> str:

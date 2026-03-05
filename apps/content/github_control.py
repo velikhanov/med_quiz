@@ -12,7 +12,7 @@ def set_workflow_state(state: str) -> bool:
     from apps.core.models import SystemConfig
 
     config = SystemConfig.get_solo()
-    should_be_active = (state == 'enable')
+    should_be_active = (state == "enable")
     if config.is_cron_active == should_be_active:
         print(f"ℹ️ GitHub Cron is already {state}d (according to DB). Skipping API call.")
         return True
@@ -32,7 +32,7 @@ def set_workflow_state(state: str) -> bool:
 
             # Update DB state
             config.is_cron_active = should_be_active
-            config.save(update_fields=['is_cron_active'])
+            config.save(update_fields=["is_cron_active"])
             return True
         else:
             print(f"❌ Failed to {state} workflow: {response.status_code} {response.text}")

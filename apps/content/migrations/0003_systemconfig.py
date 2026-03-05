@@ -6,19 +6,19 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('content', '0002_question_content_que_categor_3aa32c_idx'),
+        ("content", "0002_question_content_que_categor_3aa32c_idx"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='SystemConfig',
+            name="SystemConfig",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('is_cron_active', models.BooleanField(default=False, help_text='Current status of the GitHub Action Cron')),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("is_cron_active", models.BooleanField(default=False, help_text="Current status of the GitHub Action Cron")),
             ],
             options={
-                'verbose_name': 'System Configuration',
-                'verbose_name_plural': 'System Configuration',
+                "verbose_name": "System Configuration",
+                "verbose_name_plural": "System Configuration",
             },
         ),
     ]

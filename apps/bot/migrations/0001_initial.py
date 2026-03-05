@@ -9,47 +9,47 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('content', '0001_initial'),
+        ("content", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='TelegramUser',
+            name="TelegramUser",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('telegram_id', models.BigIntegerField(db_index=True, unique=True)),
-                ('username', models.CharField(blank=True, max_length=255, null=True)),
-                ('first_name', models.CharField(blank=True, max_length=255, null=True)),
-                ('joined_at', models.DateTimeField(auto_now_add=True)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("telegram_id", models.BigIntegerField(db_index=True, unique=True)),
+                ("username", models.CharField(blank=True, max_length=255, null=True)),
+                ("first_name", models.CharField(blank=True, max_length=255, null=True)),
+                ("joined_at", models.DateTimeField(auto_now_add=True)),
             ],
         ),
         migrations.CreateModel(
-            name='UserAnswer',
+            name="UserAnswer",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('selected_option', models.CharField(max_length=1)),
-                ('is_correct', models.BooleanField()),
-                ('timestamp', models.DateTimeField(auto_now_add=True)),
-                ('question', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='content.question')),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='attempts', to='bot.telegramuser')),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("selected_option", models.CharField(max_length=1)),
+                ("is_correct", models.BooleanField()),
+                ("timestamp", models.DateTimeField(auto_now_add=True)),
+                ("question", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to="content.question")),
+                ("user", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="attempts", to="bot.telegramuser")),
             ],
             options={
-                'indexes': [models.Index(fields=['user', 'is_correct'], name='bot_userans_user_id_49f3ce_idx')],
-                'unique_together': {('user', 'question')},
+                "indexes": [models.Index(fields=["user", "is_correct"], name="bot_userans_user_id_49f3ce_idx")],
+                "unique_together": {("user", "question")},
             },
         ),
         migrations.CreateModel(
-            name='UserCategoryProgress',
+            name="UserCategoryProgress",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('correct_count', models.IntegerField(default=0)),
-                ('total_answered', models.IntegerField(default=0)),
-                ('is_completed', models.BooleanField(default=False)),
-                ('category', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='content.category')),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='bot.telegramuser')),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("correct_count", models.IntegerField(default=0)),
+                ("total_answered", models.IntegerField(default=0)),
+                ("is_completed", models.BooleanField(default=False)),
+                ("category", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to="content.category")),
+                ("user", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to="bot.telegramuser")),
             ],
             options={
-                'unique_together': {('user', 'category')},
+                "unique_together": {("user", "category")},
             },
         ),
     ]

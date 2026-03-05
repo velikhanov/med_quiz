@@ -25,15 +25,15 @@ from apps.content.api import github_trigger_worker
 
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('bot/', include('apps.bot.urls')),
-    path('api/trigger/', github_trigger_worker),
-    path('', RedirectView.as_view(url='https://t.me/med_quiz_tr_bot', permanent=False)),
+    path("admin/", admin.site.urls),
+    path("bot/", include("apps.bot.urls")),
+    path("api/trigger/", github_trigger_worker),
+    path("", RedirectView.as_view(url="https://t.me/med_quiz_tr_bot", permanent=False)),
 
-    path('favicon.ico', RedirectView.as_view(url='/static/favicon.ico', permanent=True)),
-    path('apple-touch-icon.png', RedirectView.as_view(url='/static/favicon.ico', permanent=True)),
-    path('apple-touch-icon-precomposed.png', RedirectView.as_view(url='/static/favicon.ico', permanent=True)),
-    path('robots.txt', TemplateView.as_view(template_name="robots.txt", content_type="text/plain")),
+    path("favicon.ico", RedirectView.as_view(url="/static/favicon.ico", permanent=True)),
+    path("apple-touch-icon.png", RedirectView.as_view(url="/static/favicon.ico", permanent=True)),
+    path("apple-touch-icon-precomposed.png", RedirectView.as_view(url="/static/favicon.ico", permanent=True)),
+    path("robots.txt", TemplateView.as_view(template_name="robots.txt", content_type="text/plain")),
 ]
 
 if settings.DEBUG:

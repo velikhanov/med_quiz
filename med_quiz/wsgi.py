@@ -12,10 +12,10 @@ import sys
 
 from django.core.wsgi import get_wsgi_application
 
-path = '/home/velikhanov/med_quiz'
+path = "/home/velikhanov/med_quiz"
 if path not in sys.path:
     sys.path.append(path)
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'med_quiz.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "med_quiz.settings")
 
 application = get_wsgi_application()

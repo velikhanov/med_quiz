@@ -6,18 +6,18 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('bot', '0001_initial'),
-        ('content', '0002_question_content_que_categor_3aa32c_idx'),
+        ("bot", "0001_initial"),
+        ("content", "0002_question_content_que_categor_3aa32c_idx"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='useranswer',
-            name='is_active',
-            field=models.BooleanField(default=True, help_text='Used to filter current quiz progress'),
+            model_name="useranswer",
+            name="is_active",
+            field=models.BooleanField(default=True, help_text="Used to filter current quiz progress"),
         ),
         migrations.AddIndex(
-            model_name='useranswer',
-            index=models.Index(fields=['user', 'is_active'], name='bot_userans_user_id_25dedd_idx'),
+            model_name="useranswer",
+            index=models.Index(fields=["user", "is_active"], name="bot_userans_user_id_25dedd_idx"),
         ),
     ]

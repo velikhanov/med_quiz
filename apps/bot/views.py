@@ -7,8 +7,8 @@ from .bot import bot
 @csrf_exempt
 def telegram_webhook(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
-        json_string = request.body.decode('utf-8')
+        json_string = request.body.decode("utf-8")
         update = telebot.types.Update.de_json(json_string)
         bot.process_new_updates([update])
-        return HttpResponse('OK')
-    return HttpResponse('Bot Active')
+        return HttpResponse("OK")
+    return HttpResponse("Bot Active")

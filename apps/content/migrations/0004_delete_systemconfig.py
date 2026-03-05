@@ -6,11 +6,11 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('content', '0003_systemconfig'),
+        ("content", "0003_systemconfig"),
     ]
 
     operations = [
         migrations.DeleteModel(
-            name='SystemConfig',
+            name="SystemConfig",
         ),
     ]

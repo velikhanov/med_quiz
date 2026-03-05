@@ -3,8 +3,8 @@ from django.contrib import admin
 
 
 class CoreConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'apps.core'
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.core"
 
     def ready(self):
         # Monkey patch the default AdminSite.get_app_list to support custom sorting

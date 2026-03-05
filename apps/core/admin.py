@@ -18,20 +18,20 @@ def get_app_list_custom(self, request, app_label=None):
     # Define custom order for models within apps
     # Format: 'app_label': ['ModelName1', 'ModelName2', ...]
     ordering = {
-        'bot': ['TelegramUser', 'UserCategoryProgress', 'UserAnswer'],
-        'content': ['Test', 'Category', 'Question', 'PDFUpload'],
-        'core': ['SystemConfig'],
+        "bot": ["TelegramUser", "UserCategoryProgress", "UserAnswer"],
+        "content": ["Test", "Category", "Question", "PDFUpload"],
+        "core": ["SystemConfig"],
     }
 
     for app in app_list:
-        label = app['app_label']
+        label = app["app_label"]
         if label in ordering:
             # Create a map of model_name -> index
             order_map = {name: i for i, name in enumerate(ordering[label])}
 
             # Sort the models list
             # We use .get(..., 100) to put unknown models at the end
-            app['models'].sort(key=lambda x: order_map.get(x['object_name'], 100))
+            app["models"].sort(key=lambda x: order_map.get(x["object_name"], 100))
 
     return app_list
 
@@ -40,9 +40,9 @@ def get_app_list_custom(self, request, app_label=None):
 
 @admin.register(SystemConfig)
 class SystemConfigAdmin(admin.ModelAdmin):
-    list_display = ('__str__', 'is_cron_active')
-    readonly_fields = ('is_cron_active',)
-    actions = ('manual_enable_cron', 'manual_disable_cron')
+    list_display = ("__str__", "is_cron_active")
+    readonly_fields = ("is_cron_active",)
+    actions = ("manual_enable_cron", "manual_disable_cron")
 
     def has_add_permission(self, request):
         return SystemConfig.objects.count() == 0

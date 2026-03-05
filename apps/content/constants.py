@@ -49,7 +49,8 @@ If you find a paragraph ending with or containing "Doğru cevap: [X]" that is NO
     "subcategory": "HEMATOLOJİ",
     "question": "Kırk yaşındaki kadın hasta...",
     "options": ["A) ...", "B) ..."],
-    "correct_option": "B"
+    "correct_option": "B",
+    "explanation": "Açıklama metni buraya gelecek..."
   },
   {
     "type": "question",
@@ -58,11 +59,12 @@ If you find a paragraph ending with or containing "Doğru cevap: [X]" that is NO
     "question": "Ateş, böbrek fonksiyon bozukluğu... saptanması...",
     "options": ["A) ...", "B) ..."],
     "correct_option": "C",
+    "explanation": "Kutu içi alternatif sorunun açıklaması...",
     "is_variant": true
   },
   {
     "type": "explanation_only",
-    "explanation": "Bu soru şununla ilgilidir...",
+    "explanation": "Bu açıklama şununla ilgilidir...",
     "linked_question_number": 22
   }
 ]

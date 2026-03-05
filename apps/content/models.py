@@ -12,11 +12,11 @@ class Test(models.Model):
 
 class Category(models.Model):
     """Level 2: The Chapter/File (e.g., 'HEMATOLOJİ', 'KARDİYOLOJİ')"""
-    test = models.ForeignKey(Test, on_delete=models.CASCADE, related_name='categories')
+    test = models.ForeignKey(Test, on_delete=models.CASCADE, related_name="categories")
     name = models.CharField(max_length=255)
 
     class Meta:
-        unique_together = ('test', 'name')
+        unique_together = ("test", "name")
         verbose_name_plural = "Categories"
 
     def __str__(self) -> str:
@@ -29,14 +29,9 @@ class PDFUpload(models.Model):
     file = models.FileField()
     title = models.CharField(max_length=255)
 
-    current_subcategory = models.CharField(
-        max_length=255, default="Genel",
-        help_text="The last detected subcategory (e.g. 'Anemiler'). Used for continuity."
-    )
-
-    incomplete_question_data = models.JSONField(
-        null=True, blank=True,
-        help_text="Temporary buffer for questions split across pages"
+    parser_state = models.JSONField(
+        default=dict, blank=True,
+        help_text="Stores parsing state between pages: buffer, subcategory, pending_explanations"
     )
 
     # Progress
@@ -50,7 +45,7 @@ class PDFUpload(models.Model):
             try:
                 import fitz
 
-                self.file.open(mode='rb')
+                self.file.open(mode="rb")
                 file_data = self.file.read()
 
                 with fitz.open(stream=file_data, filetype="pdf") as doc:
@@ -115,7 +110,7 @@ class Question(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=['category', 'page_number', 'question_number', 'id']),
+            models.Index(fields=["category", "page_number", "question_number", "id"]),
         ]
 
     def __str__(self) -> str:
