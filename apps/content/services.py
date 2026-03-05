@@ -46,6 +46,7 @@ def process_next_batch(pdf: PDFUpload, batch_size: int) -> str:
             response = groq.get_quiz_content_from_image(base64_image)
 
             if response:
+                response_cleaned = ""
                 # Clean up potential markdown formatting or conversational filler
                 # Find the first '[' and the last ']'
                 json_match = re.search(r"\[.*\]", response, re.DOTALL)
@@ -53,6 +54,9 @@ def process_next_batch(pdf: PDFUpload, batch_size: int) -> str:
                     response_cleaned = json_match.group(0)
                 else:
                     response_cleaned = response
+
+                # Extra safeguard for common markdown fences
+                response_cleaned = response_cleaned.replace("```json", "").replace("```", "").strip()
 
                 response_json = json.loads(response_cleaned)
 
@@ -101,8 +105,12 @@ def process_next_batch(pdf: PDFUpload, batch_size: int) -> str:
                 else:
                     print(f"⏭️ Skipping Page {page_num} after {max_retries} failed database attempts.")
 
-        except json.JSONDecodeError:
-            print(f"Error decoding JSON on page {page_num}")
+        except json.JSONDecodeError as e:
+            print(f"❌ Error decoding JSON on page {page_num}: {e}")
+            if 'response_cleaned' in locals():
+                print("--- RAW AI RESPONSE ---")
+                print(response_cleaned)
+                print("-----------------------")
         except Exception as e:
             print(f"Error processing page {page_num}: {e}")
 

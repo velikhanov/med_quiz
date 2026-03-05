@@ -72,6 +72,7 @@ If you find a paragraph ending with or containing "Doğru cevap: [X]" that is NO
 - Return ONLY the raw JSON list.
 - Do NOT use markdown formatting (no ```json ... ``` blocks).
 - Do NOT add any conversational text before or after the JSON.
+- CRITICAL: Ensure all internal double-quotes within explanations or questions are escaped (e.g., \") and avoid using unescaped newlines inside strings.
 """
 
 TEMPERATURE = 0.1
