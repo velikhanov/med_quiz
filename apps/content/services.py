@@ -73,8 +73,9 @@ def process_next_batch(pdf: PDFUpload, batch_size: int) -> str:
                         with transaction.atomic():
                             # Parsing logic reads/writes to DB, so it must be inside the atomic block
                             # to prevent partial updates if the subsequent bulk_create or pdf.save fails.
+                            is_last_page = (page_num == len(doc) - 1)
                             buffer, count, current_subcat_state, pending_explanations, questions_to_create, questions_to_update = parse_and_save_questions(
-                                pdf, response_json, buffer, current_subcat_state, pending_explanations, page_num + 1
+                                pdf, response_json, buffer, current_subcat_state, pending_explanations, page_num + 1, is_last_page
                             )
 
                             if questions_to_create:

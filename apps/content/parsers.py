@@ -226,7 +226,7 @@ class QuestionParser:
                 page_number=page_num
             ))
 
-    def parse(self, response_json: list[dict[str, Any]], page_num: int) -> tuple[dict[str, Any] | None, int, str | None, dict[str, str], list[Question], list[Question]]:
+    def parse(self, response_json: list[dict[str, Any]], page_num: int, is_last_page: bool = False) -> tuple[dict[str, Any] | None, int, str | None, dict[str, str], list[Question], list[Question]]:
         self.page_num = page_num
         for item in response_json:
             if not item:
@@ -293,6 +293,20 @@ class QuestionParser:
             else:
                 print(f"⚠️ Unhandled Item Type '{item_type}' on Page {page_num}: {item_text[:50]}...")
 
+        if is_last_page and self.new_buffer:
+            # Document is ending, flush the remaining buffer as a final question
+            self.questions_to_create.append(Question(
+                category_id=self.pdf.category_id,
+                subcategory=self.new_buffer.get("subcategory") or self.active_subcat,
+                question_number=self.new_buffer.get("question_number"),
+                text=self.new_buffer.get("question", ""),
+                options=self.new_buffer.get("options", []),
+                correct_option=self.new_buffer.get("correct_option", "?"),
+                explanation=self.new_buffer.get("explanation", ""),
+                page_number=page_num
+            ))
+            self.new_buffer = None
+
         return self.new_buffer, len(self.questions_to_create), self.active_subcat, self.pending_explanations, self.questions_to_create, list(self.questions_to_update_map.values())
 
 
@@ -302,7 +316,8 @@ def parse_and_save_questions(
     buffer: dict[str, Any] | None,
     current_subcat_state: str | None,
     pending_explanations: dict[str, str],
-    page_num: int
+    page_num: int,
+    is_last_page: bool = False
 ) -> tuple[dict[str, Any] | None, int, str | None, dict[str, str], list[Question], list[Question]]:
     parser = QuestionParser(pdf, buffer, current_subcat_state, pending_explanations)
-    return parser.parse(response_json, page_num)
+    return parser.parse(response_json, page_num, is_last_page)
