@@ -44,6 +44,8 @@ class QuestionParser:
         cleaned_options = []
         if raw_options:
             for idx, opt in enumerate(raw_options):
+                if opt is None:
+                    continue
                 opt = opt.strip()
                 opt_clean = re.sub(r"^([A-Za-z0-9]+[\.\)\-]\s*)", "", opt)
                 cleaned_options.append(f"{chr(65+idx)}) {opt_clean}")
@@ -235,7 +237,7 @@ class QuestionParser:
             current_item_subcategory = item.get("subcategory") or self.active_subcat
 
             item_type = item.get("type")
-            item_text = item.get("question", "").strip()
+            item_text = (item.get("question") or "").strip()
             text_lower = item_text.lower()
             item_q_num = item.get("question_number")
 

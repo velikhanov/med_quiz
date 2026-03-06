@@ -73,6 +73,7 @@ If you find a paragraph ending with or containing "Doğru cevap: [X]" that is NO
 - Do NOT use markdown formatting (no ```json ... ``` blocks).
 - Do NOT add any conversational text before or after the JSON.
 - CRITICAL: Ensure all internal double-quotes within explanations or questions are escaped (e.g., \") and avoid using unescaped newlines inside strings.
+- CRITICAL: Do NOT use Unicode escape sequences (like \u00fc) for Turkish characters. Output the raw UTF-8 characters directly (e.g., write 'ü' instead of '\u00fc').
 """
 
 TEMPERATURE = 0.1

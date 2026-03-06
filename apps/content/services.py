@@ -58,6 +58,9 @@ def process_next_batch(pdf: PDFUpload, batch_size: int) -> str:
                 # Extra safeguard for common markdown fences
                 response_cleaned = response_cleaned.replace("```json", "").replace("```", "").strip()
 
+                # Defuse malformed hallucinated \u escapes that crash the JSON parser
+                response_cleaned = re.sub(r"\\u(?![0-9a-fA-F]{4})", r"\\\\u", response_cleaned)
+
                 response_json = json.loads(response_cleaned)
 
                 # 2. Database Operations with Retry Logic
