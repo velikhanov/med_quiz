@@ -160,7 +160,7 @@ class QuestionParser:
                     question_number=self.new_buffer.get("question_number"),
                     text=full_text,
                     options=full_options,
-                    correct_option=get_correct_option(item) if get_correct_option(item) != "?" else self.new_buffer.get("correct_option", "?"),
+                    correct_option=get_correct_option(item) if get_correct_option(item) != "?" else get_correct_option(self.new_buffer),
                     explanation=full_explanation,
                     page_number=page_num
                 ))
@@ -301,7 +301,7 @@ class QuestionParser:
                 question_number=self.new_buffer.get("question_number"),
                 text=self.new_buffer.get("question", ""),
                 options=self.new_buffer.get("options", []),
-                correct_option=self.new_buffer.get("correct_option", "?"),
+                correct_option=get_correct_option(self.new_buffer),
                 explanation=self.new_buffer.get("explanation", ""),
                 page_number=page_num
             ))
