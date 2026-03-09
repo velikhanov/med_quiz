@@ -19,7 +19,7 @@ def get_app_list_custom(self, request, app_label=None):
     # Format: 'app_label': ['ModelName1', 'ModelName2', ...]
     ordering = {
         "bot": ["TelegramUser", "UserCategoryProgress", "UserAnswer"],
-        "content": ["Test", "Category", "Question", "PDFUpload"],
+        "content": ["Test", "Category", "PDFUpload", "Question"],
         "core": ["SystemConfig"],
     }
 
