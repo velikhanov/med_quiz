@@ -13,6 +13,46 @@ from apps.content.constants import MAX_FILE_SIZE
 from apps.content.groq_client import GroqClient
 from apps.content.models import PDFUpload, Question
 from apps.content.parsers import parse_and_save_questions
+from apps.content.github_control import disable_cron
+from django.db.models import F
+
+
+def trigger_next_pdf_batch(is_cron: bool = False, batch_size: int = 10) -> dict:
+    """
+    Finds the next unprocessed PDF in the queue and starts a worker for it.
+    If called from the cron (is_cron=True), it may disable the cron if the queue is empty or stuck.
+    Returns a dictionary indicating the result status.
+    """
+    pdf_obj = PDFUpload.objects.filter(
+        total_pages__gt=0,
+        last_processed_page__lt=F("total_pages")
+    ).order_by("id").first()
+
+    if not pdf_obj:
+        if is_cron:
+            print("🏁 Queue empty. Disabling GitHub Cron...")
+            disable_cron()
+        return {"status": "No pending PDFs found.", "action": "cron_disabled" if is_cron else "none"}
+
+    if pdf_obj.is_processing:
+        if is_cron:
+            print(f"⚠️ PDF {pdf_obj.id} is stuck processing. Disabling cron to prevent loops...")
+            disable_cron()
+            return {"status": f"PDF {pdf_obj.id} stuck.", "action": "cron_disabled"}
+        return {"status": f"PDF {pdf_obj.id} is already processing.", "action": "none"}
+
+    # Lock the PDF
+    PDFUpload.objects.filter(id=pdf_obj.id).update(is_processing=True)
+
+    launch_detached_worker(pdf_ids=[pdf_obj.id], batch_size=batch_size)
+
+    return {
+        "status": "Detached worker started successfully",
+        "processing_id": pdf_obj.id,
+        "batch_size": batch_size,
+        "progress": f"{min(pdf_obj.last_processed_page + batch_size, pdf_obj.total_pages)}/{pdf_obj.total_pages}",
+        "action": "worker_started"
+    }
 
 
 def process_next_batch(pdf: PDFUpload, batch_size: int) -> str:

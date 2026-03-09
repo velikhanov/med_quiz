@@ -59,6 +59,7 @@ class PDFUpload(models.Model):
 
         if is_new and not self.is_processing:
             from .github_control import enable_cron
+            from .services import trigger_next_pdf_batch
 
             print("Pg Up: New file detected. Enabling GitHub Cron...")
             try:
@@ -67,6 +68,10 @@ class PDFUpload(models.Model):
             except Exception as e:
                 # Catch the error so if GitHub is down, it doesn't crash your Django Admin
                 print(f"❌ Failed to enable GitHub Cron: {e}")
+
+            # Start processing the first batch immediately
+            print("🚀 Triggering initial PDF processing batch...")
+            trigger_next_pdf_batch(is_cron=False)
 
     def delete(self, *args: Any, **kwargs: Any) -> None:
         # 1. Delete the file from disk

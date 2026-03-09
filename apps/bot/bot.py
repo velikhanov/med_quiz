@@ -55,7 +55,7 @@ def show_topics(call: CallbackQuery) -> None:
 
         if prog and prog.total_answered > 0:
             total_q = topic.total_questions
-            btn_text = f"{topic.name} ({prog.correct_count}/{total_q})"
+            btn_text = f"{topic.name} ({prog.total_answered}/{total_q})"
 
             if prog.total_answered >= total_q:
                 btn_text = "✅ " + btn_text
