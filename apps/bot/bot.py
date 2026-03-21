@@ -283,6 +283,10 @@ def handle_poll_answer(poll_answer: telebot.types.PollAnswer) -> None:
         InlineKeyboardButton("➡️ Next Question", callback_data=f"next:{question.category.id}")
     )
 
+    # Add Full Explanation button if it was truncated (Telegram limit is 200)
+    if question.explanation and len(question.explanation) > 200:
+        markup.add(InlineKeyboardButton("💡 Full Explanation", callback_data=f"expl:{question.id}"))
+
     # PDF Link Button
     site_url = getattr(settings, "SITE_URL", "http://127.0.0.1:8000")
     pdf_upload = question.category.pdfupload_set.first()
@@ -298,6 +302,23 @@ def handle_poll_answer(poll_answer: telebot.types.PollAnswer) -> None:
         bot.edit_message_reply_markup(mapping.chat_id, mapping.message_id, reply_markup=markup)
     except Exception as e:
         print(f"Error updating reply markup: {e}")
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("expl:"))
+def handle_show_explanation(call: CallbackQuery) -> None:
+    """Sends the full explanation as a separate message."""
+    bot.answer_callback_query(call.id)
+    q_id = int(call.data.split(":")[1])
+    
+    try:
+        question = Question.objects.get(id=q_id)
+        if question.explanation:
+            text = f"💡 **Full Explanation:**\n\n{question.explanation}"
+            bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
+        else:
+            bot.send_message(call.message.chat.id, "❌ No explanation found.")
+    except Question.DoesNotExist:
+        bot.send_message(call.message.chat.id, "❌ Question not found.")
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("next:"))
