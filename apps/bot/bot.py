@@ -279,6 +279,10 @@ def handle_poll_answer(poll_answer: telebot.types.PollAnswer) -> None:
     # Now update the poll's buttons to show "Next" and "PDF"
     markup = InlineKeyboardMarkup(row_width=1)
 
+    markup.add(
+        InlineKeyboardButton("➡️ Next Question", callback_data=f"next:{question.category.id}")
+    )
+
     # PDF Link Button
     site_url = getattr(settings, "SITE_URL", "http://127.0.0.1:8000")
     pdf_upload = question.category.pdfupload_set.first()
@@ -287,7 +291,6 @@ def handle_poll_answer(poll_answer: telebot.types.PollAnswer) -> None:
         markup.add(InlineKeyboardButton(f"📖 Open PDF (Page {question.page_number})", url=page_link))
 
     markup.add(
-        InlineKeyboardButton("➡️ Next Question", callback_data=f"next:{question.category.id}"),
         InlineKeyboardButton("🔙 Menu", callback_data="start_menu")
     )
 
