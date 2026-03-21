@@ -57,3 +57,16 @@ class UserAnswer(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user} - Q{self.question.id}"
+
+
+class PollMapping(models.Model):
+    """Links native Telegram poll_id to a database question for a specific user."""
+    poll_id = models.CharField(max_length=255, unique=True, db_index=True)
+    question = models.ForeignKey(Question, on_delete=models.CASCADE)
+    user = models.ForeignKey(TelegramUser, on_delete=models.CASCADE)
+    chat_id = models.BigIntegerField()
+    message_id = models.BigIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"Poll {self.poll_id} -> Q{self.question_id}"

@@ -3,7 +3,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, C
 from django.conf import settings
 from django.db.models import Count, Q
 from apps.content.models import Test, Category, Question
-from apps.bot.models import TelegramUser, UserCategoryProgress, UserAnswer
+from apps.bot.models import TelegramUser, UserCategoryProgress, UserAnswer, PollMapping
 from telebot.apihelper import ApiTelegramException
 
 bot = telebot.TeleBot(settings.TELEGRAM_BOT_TOKEN, threaded=False)
@@ -191,148 +191,110 @@ def send_result_screen(user_id: int, category: Category, correct: int, wrong: in
     bot.send_message(user_id, text, reply_markup=markup, parse_mode="Markdown")
 
 
-def format_question_text(question: Question, category_progress: dict[str, int]) -> str:
-    current = category_progress["current"]
-    total = category_progress["total"]
-
-    progress = 0
-    bar_length = 15
-    if total > 0:
-        progress = current / total
-
-    filled_length = int(bar_length * progress)
-
-    if current > 0 and filled_length == 0:
-        filled_length = 1
-
-    bar = "▓" * filled_length + "░" * (bar_length - filled_length)
-
-    progress_info = f"`{bar}` {int(progress * 100)}% • {current}/{total}"
-
-    header = f"📂 *{question.category.name}*"
-    if question.subcategory:
-        header += f" | {question.subcategory}"
-
-    q_num = f" {question.question_number}" if question.question_number else ""
-    options_text = "\n".join(question.options)
-
-    text = (
-        f"{progress_info}\n"
-        f"{header}\n"
-        f"❓ *Question{q_num}*\n\n"
-        f"{question.text}\n\n"
-        f"{options_text}"
-    )
-    return text
-
-
 def send_question_card(chat_id: int, question: Question) -> None:
     user = TelegramUser.objects.get(telegram_id=chat_id)
     category = question.category
 
     total_questions = Question.objects.filter(category=category).count()
+    passed_count = UserAnswer.objects.filter(user=user, question__category=category, is_active=True).count()
 
-    passed_questions = UserAnswer.objects.filter(
-        user=user,
-        question__category=category,
-        is_active=True
-    ).count()
+    # Progress header (plain text for poll)
+    header = f"[{passed_count+1}/{total_questions}] {category.name}"
+    if question.subcategory:
+        header += f" | {question.subcategory}"
 
-    category_progress = {"current": passed_questions, "total": total_questions}
-    text = format_question_text(question, category_progress)
+    # Poll question (Max 300 chars)
+    poll_question = f"{header}\n\n{question.text}"[:300]
 
-    markup = InlineKeyboardMarkup(row_width=2)
-    buttons = [
-        InlineKeyboardButton(text=letter, callback_data=f"ans:{question.id}:{letter}")
-        for letter in ("A", "B", "C", "D", "E")
-    ]
+    # Options must be a list of strings (Max 100 chars each)
+    clean_options = [opt[:100] for opt in question.options]
 
+    # Find correct option index (A=0, B=1, etc.)
+    correct_idx = ord(question.correct_option.upper()) - 65
+
+    # Native explanation (Max 200 chars, no links)
+    explanation = (question.explanation or "No explanation available.")[:200]
+
+    markup = InlineKeyboardMarkup()
     markup.add(
-        *buttons,
         InlineKeyboardButton("🔙 Menu", callback_data="start_menu"),
         InlineKeyboardButton("🔄 Reset Progress", callback_data=f"reset:{question.category.id}")
     )
 
-    bot.send_message(chat_id, text, reply_markup=markup, parse_mode="Markdown")
-
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("ans:"))
-def handle_answer(call: CallbackQuery) -> None:
-    bot.answer_callback_query(call.id)
-    _, q_id, selected = call.data.split(":")
-    q_id = int(q_id)
-    user_id = call.from_user.id
-
     try:
-        user = TelegramUser.objects.get(telegram_id=user_id)
-        question = Question.objects.select_related("category").get(id=q_id)
-    except Exception:
-        return None
+        poll_msg = bot.send_poll(
+            chat_id=chat_id,
+            question=poll_question,
+            options=clean_options,
+            type="quiz",
+            correct_option_id=correct_idx,
+            is_anonymous=False,
+            explanation=explanation,
+            reply_markup=markup
+        )
 
-    is_correct = (selected == question.correct_option)
+        # Store the mapping so we know which question this poll belongs to when answered
+        PollMapping.objects.create(
+            poll_id=poll_msg.poll.id,
+            question=question,
+            user=user,
+            chat_id=chat_id,
+            message_id=poll_msg.message_id
+        )
+    except Exception as e:
+        print(f"Error sending poll: {e}")
+        bot.send_message(chat_id, f"❌ Failed to send poll. Error: {str(e)[:100]}")
 
+
+@bot.poll_answer_handler()
+def handle_poll_answer(poll_answer: telebot.types.PollAnswer) -> None:
+    """Handles the user's interaction with the native poll."""
+    try:
+        mapping = PollMapping.objects.select_related("question", "user", "question__category").get(poll_id=poll_answer.poll_id)
+    except PollMapping.DoesNotExist:
+        return
+
+    user = mapping.user
+    question = mapping.question
+    selected_idx = poll_answer.option_ids[0]
+    selected_option = chr(65 + selected_idx)
+    is_correct = (selected_idx == (ord(question.correct_option.upper()) - 65))
+
+    # Record the answer
     UserAnswer.objects.update_or_create(
         user=user, question=question,
         defaults={
-            "selected_option": selected,
+            "selected_option": selected_option,
             "is_correct": is_correct,
             "is_active": True
         }
     )
 
+    # Update general stats
     prog, _ = UserCategoryProgress.objects.get_or_create(user=user, category=question.category)
-    prog.total_answered += 1
-    if is_correct:
-        prog.correct_count += 1
+    prog.total_answered = UserAnswer.objects.filter(user=user, question__category=question.category, is_active=True).count()
+    prog.correct_count = UserAnswer.objects.filter(user=user, question__category=question.category, is_active=True, is_correct=True).count()
+    prog.save()
 
-    prog.save(update_fields=["total_answered", "correct_count"])
+    # Now update the poll's buttons to show "Next" and "PDF"
+    markup = InlineKeyboardMarkup(row_width=1)
 
+    # PDF Link Button
     site_url = getattr(settings, "SITE_URL", "http://127.0.0.1:8000")
     pdf_upload = question.category.pdfupload_set.first()
-    pdf_link = ""
     if pdf_upload:
-        page_for_link = question.page_number
-        pdf_link = f"[📖 Open PDF (Page {page_for_link})]({site_url}{pdf_upload.file.url}#page={page_for_link})"
+        page_link = f"{site_url}{pdf_upload.file.url}#page={question.page_number}"
+        markup.add(InlineKeyboardButton(f"📖 Open PDF (Page {question.page_number})", url=page_link))
 
-    explanation = question.explanation if question.explanation else "Not found"
-    if is_correct:
-        response = f"✅ **Correct!**\n💡 **Explanation:**\n_{explanation}_\n\n{pdf_link}"
-    else:
-        response = (
-            f"❌ **Wrong!**\n"
-            f"You chose: **{selected}**\n"
-            f"Correct: **{question.correct_option}**\n\n"
-            f"💡 **Explanation:**\n_{explanation}_\n\n"
-            f"{pdf_link}"
-        )
-
-    total_questions = Question.objects.filter(category=question.category).count()
-    passed_questions_count = UserAnswer.objects.filter(
-        user=user, question__category=question.category, is_active=True
-    ).count()
-
-    category_progress = {"current": passed_questions_count, "total": total_questions}
-    clean_question_text = format_question_text(question, category_progress)
-
-    markup = InlineKeyboardMarkup(row_width=1)
     markup.add(
         InlineKeyboardButton("➡️ Next Question", callback_data=f"next:{question.category.id}"),
-        InlineKeyboardButton("🔙 Menu", callback_data="start_menu"),
-        InlineKeyboardButton("🔄 Reset Progress", callback_data=f"reset:{question.category.id}")
+        InlineKeyboardButton("🔙 Menu", callback_data="start_menu")
     )
 
     try:
-        bot.edit_message_text(
-            f"{clean_question_text}\n\n{response}",
-            call.message.chat.id,
-            call.message.message_id,
-            parse_mode="Markdown",
-            disable_web_page_preview=True,
-            reply_markup=markup
-        )
-    except ApiTelegramException as exc:
-        if "message is not modified" not in str(exc):
-            raise
+        bot.edit_message_reply_markup(mapping.chat_id, mapping.message_id, reply_markup=markup)
+    except Exception as e:
+        print(f"Error updating reply markup: {e}")
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("next:"))
