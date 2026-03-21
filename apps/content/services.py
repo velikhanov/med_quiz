@@ -77,13 +77,27 @@ def process_next_batch(pdf: PDFUpload, batch_size: int) -> str:
             break
 
         try:
+            # Construct context for the AI from previous page/state
+            context_text = ""
+            if buffer:
+                q_num = buffer.get("question_number") or "?"
+                q_text = buffer.get("question", "")[:150]
+                context_text += f"- CONTINUATION NEEDED: The previous page ended with an incomplete Question #{q_num}: '{q_text}...'. Please look for its remaining options or text at the very top of this page and mark it as 'type': 'fragment'.\n"
+
+            if pending_explanations:
+                nums = list(pending_explanations.keys())
+                context_text += f"- PENDING EXPLANATIONS: We are still looking for the explanations/answers for these question numbers: {nums}. If you see them isolated on this page, use 'type': 'explanation_only' and 'linked_question_number'.\n"
+
+            if current_subcat_state:
+                context_text += f"- CURRENT SUBCATEGORY: {current_subcat_state}\n"
+
             page = doc.load_page(page_num)
             pix = page.get_pixmap(dpi=300)
             img_bytes = pix.tobytes("png")
             base64_image = base64.b64encode(img_bytes).decode("utf-8")
 
-            # 1. External API Call (Take your time, no DB lock here)
-            response = groq.get_quiz_content_from_image(base64_image)
+            # 1. External API Call with Context
+            response = groq.get_quiz_content_from_image(base64_image, context_text=context_text if context_text else None)
 
             if response:
                 response_cleaned = ""
