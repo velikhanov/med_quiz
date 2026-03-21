@@ -299,7 +299,9 @@ def handle_poll_answer(poll_answer: telebot.types.PollAnswer) -> None:
     )
 
     try:
+        # Use .only() to fetch only what we need, and delete mapping to keep DB small
         bot.edit_message_reply_markup(mapping.chat_id, mapping.message_id, reply_markup=markup)
+        mapping.delete()
     except Exception as e:
         print(f"Error updating reply markup: {e}")
 
@@ -311,7 +313,8 @@ def handle_show_explanation(call: CallbackQuery) -> None:
     q_id = int(call.data.split(":")[1])
     
     try:
-        question = Question.objects.get(id=q_id)
+        # Optimization: Only fetch the explanation field from the DB
+        question = Question.objects.only("explanation").get(id=q_id)
         if question.explanation:
             text = f"💡 **Full Explanation:**\n\n{question.explanation}"
             bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
