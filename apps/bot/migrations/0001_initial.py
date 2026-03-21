@@ -63,7 +63,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name='useranswer',
-            index=models.Index(fields=['user', 'is_correct'], name='bot_userans_user_id_005574_idx'),
+            index=models.Index(fields=['user', 'is_correct'], name='bot_userans_user_id_49f3ce_idx'),
         ),
         migrations.AddIndex(
             model_name='useranswer',
