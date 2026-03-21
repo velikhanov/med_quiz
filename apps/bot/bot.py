@@ -300,6 +300,9 @@ def handle_poll_answer(poll_answer: telebot.types.PollAnswer) -> None:
         InlineKeyboardButton("🔙 Menu", callback_data="start_menu")
     )
 
+    if prog.total_answered > 1:
+        markup.add(InlineKeyboardButton("🔄 Reset Progress", callback_data=f"reset:{question.category.id}"))
+
     try:
         # Use .only() to fetch only what we need, and delete mapping to keep DB small
         bot.edit_message_reply_markup(mapping.chat_id, mapping.message_id, reply_markup=markup)
