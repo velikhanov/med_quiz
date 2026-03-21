@@ -35,6 +35,7 @@ def handle_start(message: Message) -> None:
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("subj:"))
 def show_topics(call: CallbackQuery) -> None:
+    bot.answer_callback_query(call.id)
     subject_id = int(call.data.split(":")[1])
     user_id = call.from_user.id
 
@@ -157,6 +158,7 @@ def start_quiz(call: CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("resume_retry:"))
 def handle_resume_retry(call: CallbackQuery) -> None:
+    bot.answer_callback_query(call.id)
     topic_id = int(call.data.split(":")[1])
     user_id = call.message.chat.id
     user = TelegramUser.objects.get(telegram_id=user_id)
@@ -388,6 +390,7 @@ def handle_retry_fail(call: CallbackQuery) -> None:
 
 @bot.callback_query_handler(func=lambda call: call.data == "start_menu")
 def back_to_start(call: CallbackQuery) -> None:
+    bot.answer_callback_query(call.id)
     class FakeMessage:
         def __init__(self, user_id: int, first_name: str, username: str) -> None:
             self.from_user = type("User", (), {"id": user_id, "first_name": first_name, "username": username})()
