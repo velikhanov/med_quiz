@@ -61,13 +61,13 @@ class QuestionParser:
                 box_content = item_explanation.strip()
 
         if self.new_buffer:
-            self.new_buffer["explanation"] = ((self.new_buffer.get("explanation") or "") + f"\n\n[Alternatif Soru/Kutu]:\n{box_content}").strip()
+            self.new_buffer["explanation"] = ((self.new_buffer.get("explanation") or "") + f"\n\n[Alternative Question/Box]:\n{box_content}").strip()
         elif self.questions_to_create:
-            self.questions_to_create[-1].explanation = ((self.questions_to_create[-1].explanation or "") + f"\n\n[Alternatif Soru/Kutu]:\n{box_content}").strip()
+            self.questions_to_create[-1].explanation = ((self.questions_to_create[-1].explanation or "") + f"\n\n[Alternative Question/Box]:\n{box_content}").strip()
         else:
             last_db_q = self.get_last_db_question()
             if last_db_q:
-                last_db_q.explanation = ((last_db_q.explanation or "") + f"\n\n[Alternatif Soru/Kutu]:\n{box_content}").strip()
+                last_db_q.explanation = ((last_db_q.explanation or "") + f"\n\n[Alternative Question/Box]:\n{box_content}").strip()
 
     def handle_explanation_only(self, item: dict[str, Any]) -> None:
         explanation_text = (item.get("explanation") or "").strip()
@@ -257,8 +257,8 @@ class QuestionParser:
             is_valid_question = has_options or has_correct
 
             is_box_variant = (
-                "şöyle de sorulabilirdi" in text_lower or
-                "bu soru" in text_lower or
+                "alternative" in text_lower or
+                "variant" in text_lower or
                 (
                     not is_valid_question
                     and not item.get("is_incomplete")

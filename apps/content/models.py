@@ -3,7 +3,7 @@ from django.db import models
 
 
 class Test(models.Model):
-    """Level 1: The Main Book (e.g., 'DAHİLİYE', 'PEDİATRİ')"""
+    """Level 1: The Main Book (e.g., 'Biology', 'Chemistry')"""
     name = models.CharField(max_length=255, unique=True)
 
     def __str__(self) -> str:
@@ -11,7 +11,7 @@ class Test(models.Model):
 
 
 class Category(models.Model):
-    """Level 2: The Chapter/File (e.g., 'HEMATOLOJİ', 'KARDİYOLOJİ')"""
+    """Level 2: The Chapter/File (e.g., 'Genetics', 'Anatomy')"""
     test = models.ForeignKey(Test, on_delete=models.CASCADE, related_name="categories")
     name = models.CharField(max_length=255)
 
@@ -24,7 +24,7 @@ class Category(models.Model):
 
 
 class PDFUpload(models.Model):
-    """You upload 'hematoloji.pdf' and link it to the Hematoloji Category"""
+    """You upload 'chapter1.pdf' and link it to the Category"""
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
     file = models.FileField()
     title = models.CharField(max_length=255)
@@ -104,8 +104,8 @@ class Question(models.Model):
 
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
 
-    # AI finds this (e.g., "Anemiler", "Lösemiler")
-    subcategory = models.CharField(max_length=255, blank=True, null=True, default="Genel")
+    # AI finds this (e.g., "Cell Structure", "Mitosis")
+    subcategory = models.CharField(max_length=255, blank=True, null=True, default="General")
 
     text = models.TextField()
     options = models.JSONField()

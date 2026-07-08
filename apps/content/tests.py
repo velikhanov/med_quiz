@@ -6,8 +6,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 
 class QuestionParserTests(TestCase):
     def setUp(self):
-        self.test_obj = Test.objects.create(name="DAHİLİYE")
-        self.category = Category.objects.create(test=self.test_obj, name="HEMATOLOJİ")
+        self.test_obj = Test.objects.create(name="Biology")
+        self.category = Category.objects.create(test=self.test_obj, name="Genetics")
 
         # Create a dummy PDF file
         file_content = b"%PDF-1.4..."
@@ -16,7 +16,7 @@ class QuestionParserTests(TestCase):
         self.pdf = PDFUpload.objects.create(
             category=self.category,
             file=uploaded_file,
-            title="Hematoloji PDF",
+            title="Genetics PDF",
             total_pages=10
         )
 
@@ -28,7 +28,7 @@ class QuestionParserTests(TestCase):
         # 1. Create an initial question in the DB (simulating a "complete enough" question from Page N)
         initial_q = Question.objects.create(
             category=self.category,
-            subcategory="Anemiler",
+            subcategory="Cell Structure",
             question_number=1,
             text="Initial question text",
             options=["A) Option 1", "B) Option 2"],
@@ -38,7 +38,7 @@ class QuestionParserTests(TestCase):
         )
 
         # 2. Instantiate Parser (no buffer)
-        parser = QuestionParser(self.pdf, buffer=None, current_subcat_state="Anemiler")
+        parser = QuestionParser(self.pdf, buffer=None, current_subcat_state="Cell Structure")
 
         # 3. Simulate a fragment from Page N+1
         # This fragment contains the rest of the question text, more options, and the correct answer.
@@ -52,7 +52,7 @@ class QuestionParserTests(TestCase):
         fragment_options = ["C) Option 3", "D) Option 4"]
 
         # 4. Process the fragment
-        parser.handle_fragment(fragment_item, fragment_options, "Anemiler", page_num=2)
+        parser.handle_fragment(fragment_item, fragment_options, "Cell Structure", page_num=2)
 
         # 5. Assertions
         # It should NOT create a new question
@@ -82,7 +82,7 @@ class QuestionParserTests(TestCase):
         """
         initial_q = Question.objects.create(
             category=self.category,
-            subcategory="Anemiler",
+            subcategory="Cell Structure",
             question_number=2,
             text="Q2",
             options=["A) 1", "B) 2"],
@@ -91,7 +91,7 @@ class QuestionParserTests(TestCase):
             page_number=1
         )
 
-        parser = QuestionParser(self.pdf, buffer=None, current_subcat_state="Anemiler")
+        parser = QuestionParser(self.pdf, buffer=None, current_subcat_state="Cell Structure")
 
         fragment_item = {
             "type": "fragment",
@@ -99,7 +99,7 @@ class QuestionParserTests(TestCase):
             "correct_option": "?",  # Useless info
         }
 
-        parser.handle_fragment(fragment_item, [], "Anemiler", page_num=2)
+        parser.handle_fragment(fragment_item, [], "Cell Structure", page_num=2)
 
         updated_q = parser.questions_to_update_map[initial_q.id]
 
